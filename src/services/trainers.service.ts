@@ -39,7 +39,7 @@ export interface TrainerFilters {
 }
 
 export const trainersService = {
-  async getAll(tenantId: string, filters?: TrainerFilters): Promise<{ trainers: Trainer[]; total: number }> {
+  async getAll(tenantId: string, filters?: TrainerFilters): Promise<{ trainers?: Trainer[]; data?: Trainer[]; total: number }> {
     const { data } = await apiClient.get(`/tenants/${tenantId}/trainers`, {
       params: filters,
     });

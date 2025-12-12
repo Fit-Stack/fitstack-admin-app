@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Package, ShoppingCart } from 'lucide-react';
+import { Plus, Package, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { marketplaceService, Product } from '@/services/marketplace.service';
 import {
@@ -13,6 +13,79 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import AddProductForm from '@/components/forms/AddProductForm';
+
+// Image Carousel Component
+function ProductImageCarousel({ product }: { product: Product }) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  // Get images array, sorted by displayOrder
+  const images = product.images 
+    ? [...product.images].sort((a, b) => a.displayOrder - b.displayOrder)
+    : product.imageUrls?.map((url, index) => ({ imageUrl: url, displayOrder: index })) || [];
+
+  const hasMultipleImages = images.length > 1;
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const previousImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  if (images.length === 0) {
+    return (
+      <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+        <Package className="h-16 w-16 text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden group">
+      <img
+        src={images[currentImageIndex].imageUrl}
+        alt={product.title}
+        className="w-full h-full object-cover"
+      />
+      
+      {hasMultipleImages && (
+        <>
+          {/* Previous Button */}
+          <button
+            onClick={(e) => { e.preventDefault(); previousImage(); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          
+          {/* Next Button */}
+          <button
+            onClick={(e) => { e.preventDefault(); nextImage(); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+          
+          {/* Image Indicators */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+            {images.map((_, index) => (
+              <button
+                key={index}
+                onClick={(e) => { e.preventDefault(); setCurrentImageIndex(index); }}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  index === currentImageIndex 
+                    ? 'bg-white w-4' 
+                    : 'bg-white/50 hover:bg-white/75'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function MarketplacePage() {
   const { user } = useAuthStore();
@@ -33,14 +106,26 @@ export default function MarketplacePage() {
     try {
       setLoading(true);
       setError(null);
-      const { products: data } = await marketplaceService.getProducts(user.tenantId, {
+      const response = await marketplaceService.getProducts(user.tenantId, {
         limit: 50,
       });
-      setProducts(data || []);
-    } catch (error) {
-      console.error('Error fetching products:', error);
+      
+      // Handle both old format (data/meta) and new format (products/total)
+      const data = response.products || response.data || [];
+      
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setProducts(data);
+        console.log('✅ Products loaded:', data.length, 'products');
+      } else {
+        console.error('❌ Invalid products data:', data);
+        setProducts([]);
+        setError('Invalid data format received');
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching products:', error?.message || error);
       setError('Failed to load products. Using sample data.');
-      // Don't set products to empty, let it fall back to mock data
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -67,7 +152,7 @@ export default function MarketplacePage() {
       isFeatured: true,
       hasReturnPolicy: true,
       returnPolicyDays: 30,
-      imageUrls: [],
+      images: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
@@ -83,7 +168,7 @@ export default function MarketplacePage() {
       isVip: false,
       isFeatured: false,
       hasReturnPolicy: true,
-      imageUrls: [],
+      images: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
@@ -99,7 +184,7 @@ export default function MarketplacePage() {
       isVip: false,
       isFeatured: false,
       hasReturnPolicy: false,
-      imageUrls: [],
+      images: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
@@ -117,13 +202,14 @@ export default function MarketplacePage() {
     return { text: 'In Stock', color: 'text-green-600' };
   };
 
-  const formatPrice = (price: number, currency: string) => {
+  const formatPrice = (price: number | string | undefined | null, currency: string) => {
     const symbols: Record<string, string> = {
       INR: '₹',
       USD: '$',
       EUR: '€',
     };
-    return `${symbols[currency] || currency} ${price.toFixed(2)}`;
+    const numPrice = price ? Number(price) : 0;
+    return `${symbols[currency] || currency} ${numPrice.toFixed(2)}`;
   };
 
   return (
@@ -232,18 +318,8 @@ export default function MarketplacePage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Product Image */}
-                <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                  {product.imageUrls && product.imageUrls.length > 0 ? (
-                    <img
-                      src={product.imageUrls[0]}
-                      alt={product.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Package className="h-16 w-16 text-gray-400" />
-                  )}
-                </div>
+                {/* Product Image Carousel */}
+                <ProductImageCarousel product={product} />
 
                 <p className="text-sm text-gray-600 line-clamp-2">
                   {product.description}
@@ -254,7 +330,7 @@ export default function MarketplacePage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Price:</span>
                     <div className="text-right">
-                      {product.discountedPrice && product.discountedPrice < product.originalPrice ? (
+                      {product.discountedPrice && Number(product.discountedPrice) < Number(product.originalPrice) ? (
                         <div>
                           <p className="text-xs text-gray-500 line-through">
                             {formatPrice(product.originalPrice, product.currency)}
@@ -263,7 +339,7 @@ export default function MarketplacePage() {
                             {formatPrice(product.discountedPrice, product.currency)}
                           </p>
                           <Badge variant="destructive" className="text-xs">
-                            {product.discountPercentage}% OFF
+                            {Number(product.discountPercentage || 0).toFixed(0)}% OFF
                           </Badge>
                         </div>
                       ) : (

@@ -33,14 +33,26 @@ export default function TrainersPage() {
     try {
       setLoading(true);
       setError(null);
-      const { trainers: data } = await trainersService.getAll(user.tenantId, {
+      const response = await trainersService.getAll(user.tenantId, {
         limit: 50,
       });
-      setTrainers(data || []);
-    } catch (error) {
-      console.error('Error fetching trainers:', error);
+      
+      // Handle both old format (data/meta) and new format (trainers/total)
+      const data = response.trainers || response.data || [];
+      
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setTrainers(data);
+        console.log('✅ Trainers loaded:', data.length, 'trainers');
+      } else {
+        console.error('❌ Invalid trainers data:', data);
+        setTrainers([]);
+        setError('Invalid data format received');
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching trainers:', error?.message || error);
       setError('Failed to load trainers. Using sample data.');
-      // Don't set trainers to empty, let it fall back to mock data
+      setTrainers([]);
     } finally {
       setLoading(false);
     }
@@ -250,7 +262,7 @@ export default function TrainersPage() {
                       <div className="flex items-center gap-1 mt-1">
                         <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                         <span className="text-sm font-medium text-gray-700">
-                          {trainer.rating?.toFixed(1) || '0.0'}
+                          {trainer.rating ? Number(trainer.rating).toFixed(1) : '0.0'}
                         </span>
                         <span className="text-xs text-gray-500">
                           ({trainer.totalReviews || 0} reviews)

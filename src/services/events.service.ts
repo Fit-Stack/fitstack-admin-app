@@ -2,6 +2,7 @@ import apiClient from '@/lib/axios';
 
 export interface CommunityEvent {
   id: string;
+  tenantId: string;
   title: string;
   description: string;
   activityType: string;

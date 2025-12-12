@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Upload, X } from 'lucide-react';
+import { Loader2, Upload, X, Star, MoveUp, MoveDown } from 'lucide-react';
 import { marketplaceService } from '@/services/marketplace.service';
 import { useAuthStore } from '@/store/authStore';
 
@@ -38,6 +38,7 @@ export default function AddProductForm({ onSuccess, onCancel }: AddProductFormPr
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [primaryImageIndex, setPrimaryImageIndex] = useState<number>(0);
   const [existingImageUrls] = useState<string[]>([]);
 
   const {
@@ -99,6 +100,57 @@ export default function AddProductForm({ onSuccess, onCancel }: AddProductFormPr
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
+    
+    // Adjust primary image index if needed
+    if (index === primaryImageIndex) {
+      setPrimaryImageIndex(0);
+    } else if (index < primaryImageIndex) {
+      setPrimaryImageIndex(prev => prev - 1);
+    }
+  };
+
+  const moveImageUp = (index: number) => {
+    if (index === 0) return;
+    
+    const newImages = [...images];
+    const newPreviews = [...imagePreviews];
+    
+    [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]];
+    [newPreviews[index], newPreviews[index - 1]] = [newPreviews[index - 1], newPreviews[index]];
+    
+    setImages(newImages);
+    setImagePreviews(newPreviews);
+    
+    // Adjust primary index
+    if (primaryImageIndex === index) {
+      setPrimaryImageIndex(index - 1);
+    } else if (primaryImageIndex === index - 1) {
+      setPrimaryImageIndex(index);
+    }
+  };
+
+  const moveImageDown = (index: number) => {
+    if (index === images.length - 1) return;
+    
+    const newImages = [...images];
+    const newPreviews = [...imagePreviews];
+    
+    [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
+    [newPreviews[index], newPreviews[index + 1]] = [newPreviews[index + 1], newPreviews[index]];
+    
+    setImages(newImages);
+    setImagePreviews(newPreviews);
+    
+    // Adjust primary index
+    if (primaryImageIndex === index) {
+      setPrimaryImageIndex(index + 1);
+    } else if (primaryImageIndex === index + 1) {
+      setPrimaryImageIndex(index);
+    }
+  };
+
+  const setPrimaryImage = (index: number) => {
+    setPrimaryImageIndex(index);
   };
 
   const onSubmit = async (data: ProductFormData) => {
@@ -139,10 +191,17 @@ export default function AddProductForm({ onSuccess, onCancel }: AddProductFormPr
         formData.append('existingImageUrls', existingImageUrls.join(','));
       }
 
-      // Add image files
+      // Add image files with metadata
       images.forEach((image) => {
         formData.append('images', image);
       });
+      
+      // Add image order information
+      const imageMetadata = images.map((_, index) => ({
+        displayOrder: index,
+        isPrimary: index === primaryImageIndex,
+      }));
+      formData.append('imageMetadata', JSON.stringify(imageMetadata));
 
       await marketplaceService.createProduct(user.tenantId, formData);
       onSuccess();
@@ -425,23 +484,84 @@ export default function AddProductForm({ onSuccess, onCancel }: AddProductFormPr
 
         {/* Image Previews */}
         {imagePreviews.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
-            {imagePreviews.map((preview, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={preview}
-                  alt={`Preview ${index + 1}`}
-                  className="w-full h-32 object-cover rounded-lg border"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeImage(index)}
-                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
+          <div>
+            <p className="text-sm text-gray-600 mb-3">
+              {imagePreviews.length} image{imagePreviews.length > 1 ? 's' : ''} uploaded
+              {imagePreviews.length > 1 && ' • First image will be the primary display image'}
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {imagePreviews.map((preview, index) => (
+                <div key={index} className="relative group border-2 rounded-lg overflow-hidden" style={{ borderColor: index === primaryImageIndex ? '#10b981' : 'transparent' }}>
+                  <img
+                    src={preview}
+                    alt={`Preview ${index + 1}`}
+                    className="w-full h-40 object-cover"
+                  />
+                  
+                  {/* Primary Image Badge */}
+                  {index === primaryImageIndex && (
+                    <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                      <Star className="h-3 w-3 fill-white" />
+                      Primary
+                    </div>
+                  )}
+                  
+                  {/* Image Order Number */}
+                  <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                    #{index + 1}
+                  </div>
+                  
+                  {/* Control Buttons - Visible on Hover */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-between gap-1">
+                      {/* Reorder Buttons */}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveImageUp(index)}
+                          disabled={index === 0}
+                          className="bg-white/90 hover:bg-white text-gray-700 rounded p-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move up"
+                        >
+                          <MoveUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveImageDown(index)}
+                          disabled={index === images.length - 1}
+                          className="bg-white/90 hover:bg-white text-gray-700 rounded p-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move down"
+                        >
+                          <MoveDown className="h-4 w-4" />
+                        </button>
+                      </div>
+                      
+                      {/* Set Primary & Remove Buttons */}
+                      <div className="flex gap-1">
+                        {index !== primaryImageIndex && (
+                          <button
+                            type="button"
+                            onClick={() => setPrimaryImage(index)}
+                            className="bg-green-500 hover:bg-green-600 text-white rounded p-1"
+                            title="Set as primary"
+                          >
+                            <Star className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="bg-red-500 hover:bg-red-600 text-white rounded p-1"
+                          title="Remove image"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

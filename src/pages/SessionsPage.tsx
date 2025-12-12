@@ -32,9 +32,7 @@ export default function SessionsPage() {
 
     try {
       setLoading(true);
-      const data = await sessionsService.getAll(user.tenantId, {
-        limit: 50,
-      });
+      const data = await sessionsService.getAll(user.tenantId);
       setSessions(data);
     } catch (error) {
       console.error('Error fetching sessions:', error);
@@ -52,71 +50,65 @@ export default function SessionsPage() {
   const mockSessions: Session[] = [
     {
       id: '1',
+      tenantId: user?.tenantId || '',
       title: 'HIIT Training Session',
       description: 'High-intensity interval training',
       instructorId: 'instructor-1',
       category: 'cardio',
-      startDate: new Date(2025, 11, 13).toISOString(),
-      recurrence: {
-        frequency: 'weekly',
-        interval: 1,
-        daysOfWeek: [1, 3, 5], // Mon, Wed, Fri
+      recurrencePattern: {
+        type: 'weekly',
+        days: ['monday', 'wednesday', 'friday'],
+        time: '09:00',
+        durationMinutes: 45,
+        startDate: new Date(2025, 11, 13).toISOString(),
+        endDate: new Date(2026, 11, 13).toISOString(),
       },
-      timeSlots: [
-        {
-          startTime: '09:00',
-          endTime: '09:45',
-        },
-      ],
       capacity: 20,
-      isDropIn: true,
+      isPaid: false,
+      currency: 'INR',
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
     {
       id: '2',
+      tenantId: user?.tenantId || '',
       title: 'Yoga Flow Session',
       description: 'Gentle yoga flow for flexibility',
       instructorId: 'instructor-2',
       category: 'yoga',
-      startDate: new Date(2025, 11, 13).toISOString(),
-      recurrence: {
-        frequency: 'weekly',
-        interval: 1,
-        daysOfWeek: [2, 4], // Tue, Thu
+      recurrencePattern: {
+        type: 'weekly',
+        days: ['tuesday', 'thursday'],
+        time: '10:00',
+        durationMinutes: 60,
+        startDate: new Date(2025, 11, 13).toISOString(),
+        endDate: new Date(2026, 11, 13).toISOString(),
       },
-      timeSlots: [
-        {
-          startTime: '10:00',
-          endTime: '11:00',
-        },
-      ],
       capacity: 15,
-      isDropIn: false,
+      isPaid: false,
+      currency: 'INR',
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
     {
       id: '3',
+      tenantId: user?.tenantId || '',
       title: 'Spin Class Session',
       description: 'Indoor cycling for cardio',
       instructorId: 'instructor-3',
       category: 'cardio',
-      startDate: new Date(2025, 11, 13).toISOString(),
-      recurrence: {
-        frequency: 'daily',
-        interval: 1,
+      recurrencePattern: {
+        type: 'daily',
+        time: '17:00',
+        durationMinutes: 45,
+        startDate: new Date(2025, 11, 13).toISOString(),
+        endDate: new Date(2026, 11, 13).toISOString(),
       },
-      timeSlots: [
-        {
-          startTime: '18:00',
-          endTime: '18:50',
-        },
-      ],
+      isPaid: false,
+      currency: 'INR',
       capacity: 25,
-      isDropIn: false,
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -175,17 +167,17 @@ export default function SessionsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-blue-600">
-              {sessions.filter(s => s.recurrence?.frequency).length}
+              {sessions.length}
             </div>
-            <p className="text-sm text-gray-600">Recurring</p>
+            <p className="text-sm text-gray-600">Total Sessions</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-orange-600">
-              {sessions.filter(s => s.isDropIn).length}
+              {sessions.filter(s => s.isPaid).length}
             </div>
-            <p className="text-sm text-gray-600">Drop-In</p>
+            <p className="text-sm text-gray-600">Paid Sessions</p>
           </CardContent>
         </Card>
       </div>
@@ -217,10 +209,11 @@ export default function SessionsPage() {
           {displaySessions.map((session) => {
             const instructor = session.instructor;
             // Mock enrollment for display (since Session interface doesn't have currentEnrollment)
-            const mockEnrollment = Math.floor(session.capacity * 0.7);
+            const capacity = session.capacity || 0;
+            const mockEnrollment = Math.floor(capacity * 0.7);
             const enrollmentStatus = getEnrollmentStatus(
               mockEnrollment,
-              session.capacity
+              capacity
             );
 
             return (
@@ -229,25 +222,24 @@ export default function SessionsPage() {
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     {/* Session Info */}
                     <div className="flex-1 space-y-3">
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{session.category}</Badge>
+                          {session.isPaid && (
+                            <Badge variant="secondary" className="text-xs">Paid</Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            <Repeat className="h-3 w-3 mr-1" />
+                            {session.recurrencePattern.type}
+                          </Badge>
+                        </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-semibold text-gray-900">
-                              {session.title}
-                            </h3>
-                            {session.recurrence?.frequency && (
-                              <Badge variant="outline" className="text-xs">
-                                <Repeat className="h-3 w-3 mr-1" />
-                                {session.recurrence.frequency}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {session.description}
+                          <p className="font-semibold text-gray-900">
+                            {session.title}
                           </p>
-                          {instructor && (
+                          {instructor?.user && (
                             <p className="text-sm text-gray-500 mt-1">
-                              with {instructor.firstName} {instructor.lastName}
+                              with {instructor.user.firstName} {instructor.user.lastName}
                             </p>
                           )}
                         </div>
@@ -259,30 +251,35 @@ export default function SessionsPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Calendar className="h-4 w-4" />
-                          <span>{format(new Date(session.startDate), 'MMM dd, yyyy')}</span>
+                          <span>{format(new Date(session.recurrencePattern.startDate), 'MMM dd, yyyy')}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Clock className="h-4 w-4" />
                           <span>
-                            {session.timeSlots[0]?.startTime} - {session.timeSlots[0]?.endTime}
+                            {session.recurrencePattern.time} ({session.recurrencePattern.durationMinutes}min)
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Users className="h-4 w-4 text-gray-600" />
-                          <span className="font-medium">
-                            {mockEnrollment}/{session.capacity}
-                          </span>
-                          <span className={`text-xs ${enrollmentStatus.color}`}>
-                            {enrollmentStatus.text}
-                          </span>
-                        </div>
+                        {session.capacity && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Users className="h-4 w-4 text-gray-600" />
+                            <span className="font-medium">
+                              {mockEnrollment}/{session.capacity}
+                            </span>
+                            <span className={`text-xs ${enrollmentStatus.color}`}>
+                              {enrollmentStatus.text}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      {session.endDate && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <span>Until: {format(new Date(session.endDate), 'MMM dd, yyyy')}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Repeat className="h-4 w-4" />
+                        <span className="capitalize">{session.recurrencePattern.type}</span>
+                        {session.recurrencePattern.days && (
+                          <span className="text-xs">• {session.recurrencePattern.days.join(', ')}</span>
+                        )}
+                        <span className="text-xs">• Until {format(new Date(session.recurrencePattern.endDate), 'MMM dd, yyyy')}</span>
+                      </div>
                     </div>
 
                     {/* Actions */}
@@ -297,16 +294,18 @@ export default function SessionsPage() {
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="mt-4">
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{
-                          width: `${(mockEnrollment / session.capacity) * 100}%`,
-                        }}
-                      />
+                  {capacity > 0 && (
+                    <div className="mt-4">
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{
+                            width: `${(mockEnrollment / capacity) * 100}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             );

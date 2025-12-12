@@ -1,13 +1,22 @@
 import apiClient from '@/lib/axios';
 
+export interface ProductImage {
+  id: string;
+  productId: string;
+  imageUrl: string;
+  displayOrder: number;
+  isPrimary: boolean;
+  createdAt: string;
+}
+
 export interface Product {
   id: string;
   title: string;
   description?: string;
   shortDescription?: string;
-  originalPrice: number;
-  discountedPrice?: number;
-  discountPercentage?: number;
+  originalPrice: number | string;
+  discountedPrice?: number | string;
+  discountPercentage?: number | string;
   currency: string;
   brand?: string;
   category: string;
@@ -18,8 +27,9 @@ export interface Product {
   isFeatured: boolean;
   hasReturnPolicy: boolean;
   returnPolicyDays?: number;
-  imageUrls: string[];
-  averageRating?: number;
+  imageUrls?: string[]; // Legacy support
+  images?: ProductImage[]; // New API format
+  averageRating?: number | string;
   totalReviews?: number;
   searchTags?: string[];
   createdAt: string;
@@ -45,24 +55,35 @@ export interface ProductFilters {
 
 export interface Enquiry {
   id: string;
+  tenantId: string;
   productId: string;
   product?: Product;
   userId: string;
   user?: {
+    id: string;
+    email: string;
     firstName: string;
     lastName: string;
-    email: string;
-    phone?: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
   };
-  message: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  message?: string;
   status: 'pending' | 'contacted' | 'converted' | 'closed';
   adminNotes?: string;
+  respondedAt?: string | null;
+  respondedBy?: string | null;
+  responder?: any;
+  source?: string;
+  referrerUrl?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export const marketplaceService = {
-  async getProducts(tenantId: string, filters?: ProductFilters): Promise<{ products: Product[]; total: number }> {
+  async getProducts(tenantId: string, filters?: ProductFilters): Promise<{ products?: Product[]; data?: Product[]; total: number }> {
     const { data } = await apiClient.get(`/tenants/${tenantId}/marketplace/products`, {
       params: filters,
     });
@@ -99,11 +120,11 @@ export const marketplaceService = {
     return data;
   },
 
-  async getEnquiries(tenantId: string, filters?: any): Promise<{ enquiries: Enquiry[]; total: number }> {
-    const { data } = await apiClient.get(`/tenants/${tenantId}/marketplace/enquiries`, {
+  async getEnquiries(tenantId: string, filters?: any): Promise<{ data: Enquiry[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
+    const response = await apiClient.get(`/tenants/${tenantId}/marketplace/enquiries`, {
       params: filters,
     });
-    return data;
+    return response.data;
   },
 
   async getEnquiryStatistics(tenantId: string): Promise<any> {

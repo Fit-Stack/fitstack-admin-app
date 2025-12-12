@@ -10,6 +10,7 @@ import TrainersPage from './pages/TrainersPage';
 import MarketplacePage from './pages/MarketplacePage';
 import EnquiriesPage from './pages/EnquiriesPage';
 import EventsPage from './pages/EventsPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 
 function App() {
   const { initialize, isAuthenticated, isLoading } = useAuthStore();
@@ -50,6 +51,7 @@ function App() {
           <Route path="marketplace" element={<MarketplacePage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />
           <Route path="events" element={<EventsPage />} />
+          <Route path="announcements" element={<AnnouncementsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

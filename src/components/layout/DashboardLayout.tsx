@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   MessageSquare,
   CalendarDays,
+  Megaphone,
   LogOut,
   Menu,
   X,
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Marketplace', href: '/marketplace', icon: ShoppingBag },
   { name: 'Enquiries', href: '/enquiries', icon: MessageSquare },
   { name: 'Events', href: '/events', icon: CalendarDays },
+  { name: 'Announcements', href: '/announcements', icon: Megaphone },
 ];
 
 export default function DashboardLayout() {

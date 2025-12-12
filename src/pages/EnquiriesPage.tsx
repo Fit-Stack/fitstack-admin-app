@@ -54,7 +54,7 @@ export default function EnquiriesPage() {
       const filters: any = {
         limit: 100,
         sortBy: 'createdAt',
-        sortOrder: 'DESC',
+        sortOrder: 'ASC',
       };
 
       if (statusFilter !== 'all') {
@@ -65,8 +65,9 @@ export default function EnquiriesPage() {
         filters.search = searchQuery;
       }
 
-      const { enquiries: data } = await marketplaceService.getEnquiries(user.tenantId, filters);
-      setEnquiries(data || []);
+      const response = await marketplaceService.getEnquiries(user.tenantId, filters);
+      setEnquiries(response.data || []);
+      console.log('✅ Enquiries loaded:', response.data.length, 'enquiries');
     } catch (error) {
       console.error('Error fetching enquiries:', error);
       setError('Failed to load enquiries.');
@@ -136,6 +137,17 @@ export default function EnquiriesPage() {
         return <XCircle className="h-4 w-4" />;
       default:
         return <MessageSquare className="h-4 w-4" />;
+    }
+  };
+
+  const formatDate = (dateString: string | undefined | null, formatStr: string = 'MMM dd, yyyy HH:mm'): string => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return format(date, formatStr);
+    } catch (error) {
+      return 'Invalid Date';
     }
   };
 
@@ -303,7 +315,7 @@ export default function EnquiriesPage() {
                             {enquiry.status}
                           </Badge>
                           <span className="text-xs text-gray-500">
-                            {format(new Date(enquiry.createdAt), 'MMM dd, yyyy HH:mm')}
+                            {formatDate(enquiry.createdAt)}
                           </span>
                         </div>
 
@@ -343,11 +355,13 @@ export default function EnquiriesPage() {
                         )}
 
                         {/* Message Preview */}
-                        <div className="mt-2 p-3 bg-gray-50 rounded-md">
-                          <p className="text-sm text-gray-700 line-clamp-2">
-                            {enquiry.message}
-                          </p>
-                        </div>
+                        {enquiry.message && (
+                          <div className="mt-2 p-3 bg-gray-50 rounded-md">
+                            <p className="text-sm text-gray-700 line-clamp-2">
+                              {enquiry.message}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -481,12 +495,14 @@ export default function EnquiriesPage() {
               )}
 
               {/* Enquiry Message */}
-              <div className="border-t pt-4">
-                <h3 className="text-lg font-semibold mb-3">Customer Message</h3>
-                <div className="p-4 bg-gray-50 rounded-md">
-                  <p className="text-gray-700 whitespace-pre-wrap">{selectedEnquiry.message}</p>
+              {selectedEnquiry.message && (
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-3">Customer Message</h3>
+                  <div className="p-4 bg-gray-50 rounded-md">
+                    <p className="text-gray-700 whitespace-pre-wrap">{selectedEnquiry.message}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Admin Notes */}
               <div className="border-t pt-4">
@@ -513,13 +529,13 @@ export default function EnquiriesPage() {
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    Created: {format(new Date(selectedEnquiry.createdAt), 'MMM dd, yyyy HH:mm')}
+                    Created: {formatDate(selectedEnquiry.createdAt)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    Updated: {format(new Date(selectedEnquiry.updatedAt), 'MMM dd, yyyy HH:mm')}
+                    Updated: {formatDate(selectedEnquiry.updatedAt)}
                   </span>
                 </div>
               </div>
