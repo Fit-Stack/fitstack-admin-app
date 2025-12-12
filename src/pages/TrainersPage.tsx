@@ -164,32 +164,32 @@ export default function TrainersPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">{trainers.length}</div>
-            <p className="text-sm text-gray-600">Total Trainers</p>
+            <div className="text-2xl font-bold text-gray-700">{trainers.length}</div>
+            <p className="text-sm text-gray-500">Total Trainers</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-emerald-600">
               {trainers.filter(t => t.availabilityStatus === 'available').length}
             </div>
-            <p className="text-sm text-gray-600">Available</p>
+            <p className="text-sm text-gray-500">Available</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-sky-600">
               {trainers.filter(t => t.offersDemoSession).length}
             </div>
-            <p className="text-sm text-gray-600">Offer Demo</p>
+            <p className="text-sm text-gray-500">Offer Demo</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-violet-600">
               {trainers.filter(t => t.experienceLevel === 'expert').length}
             </div>
-            <p className="text-sm text-gray-600">Expert Level</p>
+            <p className="text-sm text-gray-500">Expert Level</p>
           </CardContent>
         </Card>
       </div>
@@ -200,6 +200,15 @@ export default function TrainersPage() {
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <p className="mt-2 text-gray-600">Loading trainers...</p>
         </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="py-4">
+            <p className="text-orange-800">{error}</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Empty State */}

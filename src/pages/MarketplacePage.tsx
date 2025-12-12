@@ -1,80 +1,129 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, DollarSign, Package } from 'lucide-react';
+import { Plus, Package, ShoppingCart } from 'lucide-react';
+import { useAuthStore } from '@/store/authStore';
+import { marketplaceService, Product } from '@/services/marketplace.service';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import AddProductForm from '@/components/forms/AddProductForm';
 
 export default function MarketplacePage() {
-  // Mock data - in real app, fetch from API
-  const products = [
+  const { user } = useAuthStore();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+
+  useEffect(() => {
+    if (user?.tenantId) {
+      fetchProducts();
+    }
+  }, [user?.tenantId]);
+
+  const fetchProducts = async () => {
+    if (!user?.tenantId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      const { products: data } = await marketplaceService.getProducts(user.tenantId, {
+        limit: 50,
+      });
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setError('Failed to load products. Using sample data.');
+      // Don't set products to empty, let it fall back to mock data
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddProductSuccess = () => {
+    setIsAddProductOpen(false);
+    fetchProducts();
+  };
+
+  // Mock data as fallback
+  const mockProducts: Product[] = [
     {
       id: '1',
-      name: 'Protein Powder - Vanilla',
+      title: 'Protein Powder - Vanilla',
       description: 'Premium whey protein isolate for muscle recovery',
-      price: 49.99,
+      originalPrice: 2999,
+      discountedPrice: 1999,
+      currency: 'INR',
       category: 'Supplements',
-      stock: 45,
-      status: 'published',
+      quantity: 45,
+      stockStatus: 'in_stock',
+      isVip: false,
+      isFeatured: true,
+      hasReturnPolicy: true,
+      returnPolicyDays: 30,
+      imageUrls: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     },
     {
       id: '2',
-      name: 'Yoga Mat - Premium',
+      title: 'Yoga Mat - Premium',
       description: 'Non-slip eco-friendly yoga mat with carrying strap',
-      price: 34.99,
+      originalPrice: 1499,
+      currency: 'INR',
       category: 'Equipment',
-      stock: 23,
-      status: 'published',
+      quantity: 23,
+      stockStatus: 'limited',
+      isVip: false,
+      isFeatured: false,
+      hasReturnPolicy: true,
+      imageUrls: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     },
     {
       id: '3',
-      name: 'Resistance Bands Set',
+      title: 'Resistance Bands Set',
       description: 'Set of 5 resistance bands for strength training',
-      price: 24.99,
+      originalPrice: 999,
+      currency: 'INR',
       category: 'Equipment',
-      stock: 67,
-      status: 'published',
-    },
-    {
-      id: '4',
-      name: 'Pre-Workout Energy',
-      description: 'Energy boost supplement for intense workouts',
-      price: 39.99,
-      category: 'Supplements',
-      stock: 0,
-      status: 'out_of_stock',
-    },
-    {
-      id: '5',
-      name: 'Gym Towel Set',
-      description: 'Quick-dry microfiber towels (pack of 3)',
-      price: 19.99,
-      category: 'Accessories',
-      stock: 89,
-      status: 'published',
-    },
-    {
-      id: '6',
-      name: 'Water Bottle - Insulated',
-      description: '32oz stainless steel insulated water bottle',
-      price: 29.99,
-      category: 'Accessories',
-      stock: 12,
-      status: 'draft',
+      quantity: 67,
+      stockStatus: 'in_stock',
+      isVip: false,
+      isFeatured: false,
+      hasReturnPolicy: false,
+      imageUrls: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     },
   ];
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
-      published: 'success',
-      draft: 'secondary',
-      out_of_stock: 'destructive',
-    };
-    return variants[status] || 'default';
+  const displayProducts = products.length > 0 ? products : (loading ? [] : mockProducts);
+
+  const getStockStatus = (quantity: number, stockStatus: string) => {
+    if (stockStatus === 'out_of_stock' || quantity === 0) {
+      return { text: 'Out of Stock', color: 'text-red-600' };
+    }
+    if (stockStatus === 'limited' || quantity < 20) {
+      return { text: 'Low Stock', color: 'text-orange-600' };
+    }
+    return { text: 'In Stock', color: 'text-green-600' };
   };
 
-  const getStockStatus = (stock: number) => {
-    if (stock === 0) return { text: 'Out of Stock', color: 'text-red-600' };
-    if (stock < 20) return { text: 'Low Stock', color: 'text-orange-600' };
-    return { text: 'In Stock', color: 'text-green-600' };
+  const formatPrice = (price: number, currency: string) => {
+    const symbols: Record<string, string> = {
+      INR: '₹',
+      USD: '$',
+      EUR: '€',
+    };
+    return `${symbols[currency] || currency} ${price.toFixed(2)}`;
   };
 
   return (
@@ -85,16 +134,82 @@ export default function MarketplacePage() {
           <h1 className="text-3xl font-bold text-gray-900">Marketplace</h1>
           <p className="text-gray-600 mt-1">Manage products and inventory</p>
         </div>
-        <Button>
+        <Button onClick={() => setIsAddProductOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Product
         </Button>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-gray-700">{displayProducts.length}</div>
+            <p className="text-sm text-gray-500">Total Products</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-emerald-600">
+              {displayProducts.filter(p => p.stockStatus === 'in_stock').length}
+            </div>
+            <p className="text-sm text-gray-500">In Stock</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-indigo-600">
+              {displayProducts.filter(p => p.isFeatured).length}
+            </div>
+            <p className="text-sm text-gray-500">Featured</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-rose-600">
+              {displayProducts.filter(p => p.stockStatus === 'out_of_stock').length}
+            </div>
+            <p className="text-sm text-gray-500">Out of Stock</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="mt-2 text-gray-600">Loading products...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="py-4">
+            <p className="text-orange-800">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {!loading && displayProducts.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <ShoppingCart className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-gray-600">No products found. Add your first product to get started!</p>
+            <Button className="mt-4" onClick={() => setIsAddProductOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Product
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => {
-          const stockStatus = getStockStatus(product.stock);
+      {!loading && displayProducts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {displayProducts.map((product) => {
+            const stockStatus = getStockStatus(product.quantity, product.stockStatus);
           
           return (
             <Card key={product.id} className="hover:shadow-lg transition-shadow">
@@ -102,19 +217,32 @@ export default function MarketplacePage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-lg line-clamp-1">
-                      {product.name}
+                      {product.title}
                     </CardTitle>
                     <p className="text-sm text-gray-500 mt-1">{product.category}</p>
                   </div>
-                  <Badge variant={getStatusBadge(product.status)}>
-                    {product.status.replace('_', ' ')}
-                  </Badge>
+                  <div className="flex gap-1">
+                    {product.isFeatured && (
+                      <Badge variant="default" className="text-xs">Featured</Badge>
+                    )}
+                    {product.isVip && (
+                      <Badge variant="secondary" className="text-xs">VIP</Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Product Image Placeholder */}
-                <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Package className="h-16 w-16 text-gray-400" />
+                {/* Product Image */}
+                <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                  {product.imageUrls && product.imageUrls.length > 0 ? (
+                    <img
+                      src={product.imageUrls[0]}
+                      alt={product.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="h-16 w-16 text-gray-400" />
+                  )}
                 </div>
 
                 <p className="text-sm text-gray-600 line-clamp-2">
@@ -125,22 +253,40 @@ export default function MarketplacePage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Price:</span>
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-4 w-4 text-gray-600" />
-                      <span className="text-lg font-bold text-gray-900">
-                        {product.price.toFixed(2)}
-                      </span>
+                    <div className="text-right">
+                      {product.discountedPrice && product.discountedPrice < product.originalPrice ? (
+                        <div>
+                          <p className="text-xs text-gray-500 line-through">
+                            {formatPrice(product.originalPrice, product.currency)}
+                          </p>
+                          <p className="text-lg font-bold text-green-600">
+                            {formatPrice(product.discountedPrice, product.currency)}
+                          </p>
+                          <Badge variant="destructive" className="text-xs">
+                            {product.discountPercentage}% OFF
+                          </Badge>
+                        </div>
+                      ) : (
+                        <p className="text-lg font-bold text-gray-900">
+                          {formatPrice(product.originalPrice, product.currency)}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Stock:</span>
                     <div className="text-right">
-                      <p className="font-medium text-gray-900">{product.stock} units</p>
+                      <p className="font-medium text-gray-900">{product.quantity} units</p>
                       <p className={`text-xs ${stockStatus.color}`}>
                         {stockStatus.text}
                       </p>
                     </div>
                   </div>
+                  {product.hasReturnPolicy && (
+                    <div className="text-xs text-green-600 flex items-center gap-1">
+                      ✓ {product.returnPolicyDays}-day return policy
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -153,10 +299,29 @@ export default function MarketplacePage() {
                   </Button>
                 </div>
               </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add Product Side Panel */}
+      <Sheet open={isAddProductOpen} onOpenChange={setIsAddProductOpen}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Add New Product</SheetTitle>
+            <SheetDescription>
+              Fill in the product details and upload images
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6">
+            <AddProductForm
+              onSuccess={handleAddProductSuccess}
+              onCancel={() => setIsAddProductOpen(false)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

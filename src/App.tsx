@@ -8,6 +8,7 @@ import ClassesPage from './pages/ClassesPage';
 import SessionsPage from './pages/SessionsPage';
 import TrainersPage from './pages/TrainersPage';
 import MarketplacePage from './pages/MarketplacePage';
+import EnquiriesPage from './pages/EnquiriesPage';
 import EventsPage from './pages/EventsPage';
 
 function App() {
@@ -47,6 +48,7 @@ function App() {
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="trainers" element={<TrainersPage />} />
           <Route path="marketplace" element={<MarketplacePage />} />
+          <Route path="enquiries" element={<EnquiriesPage />} />
           <Route path="events" element={<EventsPage />} />
         </Route>
 

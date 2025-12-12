@@ -9,6 +9,7 @@ import {
   Calendar,
   Users,
   ShoppingBag,
+  MessageSquare,
   CalendarDays,
   LogOut,
   Menu,
@@ -24,6 +25,7 @@ const navigation = [
   { name: 'Sessions', href: '/sessions', icon: Calendar },
   { name: 'Trainers', href: '/trainers', icon: Users },
   { name: 'Marketplace', href: '/marketplace', icon: ShoppingBag },
+  { name: 'Enquiries', href: '/enquiries', icon: MessageSquare },
   { name: 'Events', href: '/events', icon: CalendarDays },
 ];
 
