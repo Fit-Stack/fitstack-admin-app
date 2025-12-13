@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Loader2, Plus, X } from 'lucide-react';
 import { classesService } from '@/services/classes.service';
+import { trainersService, Trainer } from '@/services/trainers.service';
 import { useAuthStore } from '@/store/authStore';
 
 interface AddClassFormProps {
@@ -35,6 +37,11 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
   const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([
     { startTime: '', endTime: '' },
   ]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [loadingTrainers, setLoadingTrainers] = useState(false);
+  const [selectedTrainer, setSelectedTrainer] = useState<string>('');
+  const [createdClass, setCreatedClass] = useState<any>(null);
+  const [publishLoading, setPublishLoading] = useState(false);
 
   const {
     register,
@@ -51,6 +58,25 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
   });
 
   const pricingType = watch('pricingType');
+
+  useEffect(() => {
+    if (user?.tenantId) {
+      fetchTrainers();
+    }
+  }, [user?.tenantId]);
+
+  const fetchTrainers = async () => {
+    if (!user?.tenantId) return;
+    try {
+      setLoadingTrainers(true);
+      const response = await trainersService.getAll(user.tenantId);
+      setTrainers(response.trainers || response.data || []);
+    } catch (error) {
+      console.error('Error fetching trainers:', error);
+    } finally {
+      setLoadingTrainers(false);
+    }
+  };
 
   const daysOfWeek = [
     { value: 'monday', label: 'Mon' },
@@ -104,7 +130,7 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
       const classData = {
         title: data.title,
         description: data.description,
-        instructorId: data.instructorId,
+        instructorId: selectedTrainer,
         startDate: data.startDate,
         endDate: data.endDate,
         schedule: {
@@ -119,9 +145,9 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
         level: data.level,
       };
 
-      await classesService.create(user.tenantId, classData);
-      alert('Class created successfully!');
-      onSuccess();
+      const newClass = await classesService.create(user.tenantId, classData);
+      setCreatedClass(newClass);
+      alert('Class created successfully! Would you like to publish it now?');
     } catch (error: any) {
       console.error('Error creating class:', error);
       alert(error.response?.data?.message || 'Failed to create class. Please try again.');
@@ -198,18 +224,21 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
         </div>
 
         <div>
-          <Label htmlFor="instructorId">Instructor ID *</Label>
-          <Input
-            id="instructorId"
-            {...register('instructorId', { required: 'Instructor ID is required' })}
-            placeholder="Enter instructor ID"
+          <Label htmlFor="instructor">Instructor *</Label>
+          <SearchableSelect
+            options={trainers.map((trainer) => ({
+              value: trainer.id,
+              label: `${trainer.user?.firstName || ''} ${trainer.user?.lastName || ''}`.trim(),
+              subtitle: trainer.specializations.slice(0, 2).join(', '),
+            }))}
+            value={selectedTrainer}
+            onChange={setSelectedTrainer}
+            placeholder={loadingTrainers ? 'Loading trainers...' : 'Select a trainer'}
+            disabled={loadingTrainers}
           />
-          {errors.instructorId && (
-            <p className="text-sm text-red-600 mt-1">{errors.instructorId.message}</p>
+          {!selectedTrainer && (
+            <p className="text-sm text-red-600 mt-1">Instructor is required</p>
           )}
-          <p className="text-xs text-gray-500 mt-1">
-            You can find instructor IDs in the Trainers section
-          </p>
         </div>
       </div>
 
@@ -347,7 +376,7 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
                 min="0"
                 step="0.01"
                 {...register('price', {
-                  required: pricingType !== 'membership' ? 'Price is required' : false,
+                  required: 'Price is required',
                 })}
                 placeholder="0.00"
               />
@@ -373,19 +402,64 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
 
       {/* Form Actions */}
       <div className="flex gap-3 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading} className="flex-1">
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Creating...
-            </>
-          ) : (
-            'Create Class'
-          )}
-        </Button>
+        {!createdClass ? (
+          <>
+            <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading || !selectedTrainer} className="flex-1">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                'Create Class'
+              )}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setCreatedClass(null);
+                onSuccess();
+              }}
+              className="flex-1"
+            >
+              Done
+            </Button>
+            <Button
+              type="button"
+              onClick={async () => {
+                try {
+                  setPublishLoading(true);
+                  await classesService.publish(user?.tenantId!, createdClass.id);
+                  alert('Class published successfully!');
+                  onSuccess();
+                } catch (error: any) {
+                  console.error('Error publishing class:', error);
+                  alert(error.response?.data?.message || 'Failed to publish class.');
+                } finally {
+                  setPublishLoading(false);
+                }
+              }}
+              disabled={publishLoading}
+              className="flex-1"
+            >
+              {publishLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                'Publish Class'
+              )}
+            </Button>
+          </>
+        )}
       </div>
     </form>
   );

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Filter, Calendar, Users } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, Users, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/store/authStore';
 import { classesService, Class } from '@/services/classes.service';
@@ -23,6 +23,7 @@ export default function ClassesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
+  const [publishingClassId, setPublishingClassId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.tenantId) {
@@ -51,6 +52,22 @@ export default function ClassesPage() {
   const handleAddClassSuccess = () => {
     setIsAddClassOpen(false);
     fetchClasses(); // Refresh the list
+  };
+
+  const handlePublishClass = async (classId: string) => {
+    if (!user?.tenantId) return;
+
+    try {
+      setPublishingClassId(classId);
+      await classesService.publish(user.tenantId, classId);
+      alert('Class published successfully!');
+      fetchClasses(); // Refresh the list
+    } catch (error: any) {
+      console.error('Error publishing class:', error);
+      alert(error.response?.data?.message || 'Failed to publish class.');
+    } finally {
+      setPublishingClassId(null);
+    }
   };
 
   const filteredClasses = classes.filter((classItem) =>
@@ -319,6 +336,23 @@ export default function ClassesPage() {
                 </div>
 
                 <div className="flex gap-2 pt-4">
+                  {classItem.status === 'draft' && (
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handlePublishClass(classItem.id)}
+                      disabled={publishingClassId === classItem.id}
+                    >
+                      {publishingClassId === classItem.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Publishing...
+                        </>
+                      ) : (
+                        'Publish'
+                      )}
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" className="flex-1">
                     Edit
                   </Button>
