@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { usersService, User, UserFilters } from '@/services/users.service';
 import { useAuthStore } from '@/store/authStore';
 import { useToast } from '@/components/ui/toast';
-import { Search, User as UserIcon, Mail, Calendar, Shield, Eye, EyeOff, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Search, User as UserIcon, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 
 export default function UsersPage() {
   const { user } = useAuthStore();
@@ -218,72 +218,127 @@ export default function UsersPage() {
         </div>
       </Card>
 
-      {/* Users Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Desktop Table View */}
+      <div className="hidden lg:block">
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-800 border-b">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Joined</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {users.map((user) => (
+                  <tr 
+                    key={user.id} 
+                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+                    onClick={() => handleUserClick(user)}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-600 dark:to-gray-700 flex items-center justify-center flex-shrink-0">
+                          <UserIcon className="h-5 w-5 text-gray-500 dark:text-gray-300" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                            {user.fullName || 'No name'}
+                          </p>
+                          <p className="text-sm text-gray-500 truncate max-w-[250px]">{user.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge className={getRoleColor(user.role)}>{user.role}</Badge>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                      {formatDate(user.createdAt)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                        user.isActive 
+                          ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                          : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                        {user.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUserToggle(user);
+                        }}
+                        className={`${user.isActive ? 'text-red-600 hover:text-red-700 hover:bg-red-50' : 'text-green-600 hover:text-green-700 hover:bg-green-50'}`}
+                      >
+                        {user.isActive ? 'Deactivate' : 'Activate'}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
+      {/* Mobile/Tablet Card View */}
+      <div className="lg:hidden grid gap-3 sm:grid-cols-2">
         {users.map((user) => (
           <Card
             key={user.id}
-            className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
+            className="p-4 hover:shadow-md transition-shadow cursor-pointer"
             onClick={() => handleUserClick(user)}
           >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center">
-                  <UserIcon className="h-6 w-6 text-gray-500" />
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
+                <UserIcon className="h-5 w-5 text-gray-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {user.fullName || 'No name'}
+                    </h3>
+                    <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                  </div>
+                  <Badge className={`${getRoleColor(user.role)} flex-shrink-0 text-xs`}>
+                    {user.role}
+                  </Badge>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                    {user.fullName || user.email}
-                  </h3>
-                  <p className="text-sm text-gray-500">{user.email}</p>
+                
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-4">
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${
+                      user.isActive ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${user.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                      {user.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(user.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUserToggle(user);
+                    }}
+                    className={`text-xs h-7 px-2 ${user.isActive ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}
+                  >
+                    {user.isActive ? 'Deactivate' : 'Activate'}
+                  </Button>
                 </div>
               </div>
-              <Badge className={getRoleColor(user.role)}>
-                {user.role}
-              </Badge>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center text-gray-600 dark:text-gray-400">
-                <Mail className="h-4 w-4 mr-2" />
-                {user.email}
-              </div>
-              <div className="flex items-center text-gray-600 dark:text-gray-400">
-                <Calendar className="h-4 w-4 mr-2" />
-                Joined {formatDate(user.createdAt)}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <div className="flex items-center">
-                <Shield className="h-4 w-4 mr-2" />
-                <span className={`text-sm font-medium ${
-                  user.isActive ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {user.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleUserToggle(user);
-                }}
-                className="flex items-center gap-2"
-              >
-                {user.isActive ? (
-                  <>
-                    <EyeOff className="h-4 w-4" />
-                    Deactivate
-                  </>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4" />
-                    Activate
-                  </>
-                )}
-              </Button>
             </div>
           </Card>
         ))}
