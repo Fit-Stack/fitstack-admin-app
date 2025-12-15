@@ -40,12 +40,22 @@ export interface ClassFilters {
   instructorId?: string;
   startDateFrom?: string;
   startDateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedClassesResponse {
+  classes: Class[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export const classesService = {
-  async getAll(tenantId: string, filters?: ClassFilters): Promise<Class[]> {
+  async getAll(tenantId: string, filters?: ClassFilters): Promise<PaginatedClassesResponse> {
     const { data } = await apiClient.get(`/tenants/${tenantId}/classes`, {
-      params: filters,
+      params: { page: 1, limit: 20, ...filters },
     });
     return data;
   },

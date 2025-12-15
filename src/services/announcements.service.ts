@@ -27,15 +27,17 @@ export interface AnnouncementFilters {
   status?: string;
   targetAudience?: string;
   isPinned?: boolean;
+  page?: number;
+  limit?: number;
 }
 
 export const announcementsService = {
-  async getAll(tenantId: string, filters?: AnnouncementFilters): Promise<Announcement[]> {
+  async getAll(tenantId: string, filters?: AnnouncementFilters): Promise<{ data: Announcement[]; total: number; page: number; limit: number }> {
     const response = await apiClient.get(`/tenants/${tenantId}/announcements`, {
-      params: filters,
+      params: { page: 1, limit: 10, ...filters },
     });
     // Backend returns { data: [...], total, page, limit }
-    return response.data.data || [];
+    return response.data;
   },
 
   async getById(tenantId: string, announcementId: string): Promise<Announcement> {

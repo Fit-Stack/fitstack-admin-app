@@ -46,15 +46,25 @@ export interface Session {
 
 export interface SessionFilters {
   status?: string;
-  category?: string;
   instructorId?: string;
+  page?: number;
   limit?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface PaginatedSessionsResponse {
+  sessions: Session[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export const sessionsService = {
-  async getAll(tenantId: string, filters?: SessionFilters): Promise<Session[]> {
+  async getAll(tenantId: string, filters?: SessionFilters): Promise<PaginatedSessionsResponse> {
     const { data } = await apiClient.get(`/tenants/${tenantId}/sessions`, {
-      params: filters,
+      params: { page: 1, limit: 20, ...filters },
     });
     return data;
   },

@@ -3,22 +3,37 @@ import apiClient from '@/lib/axios';
 export interface User {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
+  fullName?: string;
   role: string;
   isActive: boolean;
-  avatarUrl?: string;
-  preferences?: Record<string, any>;
-  lastLoginAt?: string;
   createdAt: string;
-  updatedAt: string;
+}
+
+export interface UserFilters {
+  role?: string;
+  email?: string;
+  fullName?: string;
+  createdAtFrom?: string;
+  createdAtTo?: string;
+  isActive?: boolean;
+  sortBy?: 'email' | 'fullName' | 'role' | 'createdAt';
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedUsersResponse {
+  users: User[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export const usersService = {
-  async getAll(tenantId: string, page: number = 1, limit: number = 10): Promise<{ users: User[]; total: number; page: number; limit: number }> {
+  async getAll(tenantId: string, filters?: UserFilters): Promise<PaginatedUsersResponse> {
     const { data } = await apiClient.get(`/tenants/${tenantId}/users`, {
-      params: { page, limit },
+      params: { page: 1, limit: 20, ...filters },
     });
     return data;
   },

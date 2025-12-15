@@ -7,6 +7,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Loader2, Plus, X } from 'lucide-react';
 import { classesService } from '@/services/classes.service';
 import { trainersService, Trainer } from '@/services/trainers.service';
+import { useToast } from '@/components/ui/toast';
 import { useAuthStore } from '@/store/authStore';
 
 interface AddClassFormProps {
@@ -32,6 +33,7 @@ interface ClassFormData {
 
 export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps) {
   const { user } = useAuthStore();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [timeSlots, setTimeSlots] = useState<Array<{ startTime: string; endTime: string }>>([
@@ -110,17 +112,17 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
 
   const onSubmit = async (data: ClassFormData) => {
     if (!user?.tenantId) {
-      alert('User not authenticated');
+      error('Authentication Error', 'User not authenticated');
       return;
     }
 
     if (selectedDays.length === 0) {
-      alert('Please select at least one day');
+      error('Validation Error', 'Please select at least one day');
       return;
     }
 
     if (timeSlots.some((slot) => !slot.startTime || !slot.endTime)) {
-      alert('Please fill in all time slots');
+      error('Validation Error', 'Please fill in all time slots');
       return;
     }
 
@@ -147,10 +149,10 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
 
       const newClass = await classesService.create(user.tenantId, classData);
       setCreatedClass(newClass);
-      alert('Class created successfully! Would you like to publish it now?');
+      success('Success', 'Class created successfully! Would you like to publish it now?');
     } catch (error: any) {
       console.error('Error creating class:', error);
-      alert(error.response?.data?.message || 'Failed to create class. Please try again.');
+      error('Error', error.response?.data?.message || 'Failed to create class. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -426,6 +428,9 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
               onClick={() => {
                 setCreatedClass(null);
                 onSuccess();
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1000);
               }}
               className="flex-1"
             >
@@ -437,11 +442,14 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
                 try {
                   setPublishLoading(true);
                   await classesService.publish(user?.tenantId!, createdClass.id);
-                  alert('Class published successfully!');
+                  success('Success', 'Class published successfully!');
                   onSuccess();
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1000);
                 } catch (error: any) {
                   console.error('Error publishing class:', error);
-                  alert(error.response?.data?.message || 'Failed to publish class.');
+                  error('Error', error.response?.data?.message || 'Failed to publish class.');
                 } finally {
                   setPublishLoading(false);
                 }

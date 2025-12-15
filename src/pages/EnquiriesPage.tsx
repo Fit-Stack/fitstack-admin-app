@@ -15,6 +15,8 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
@@ -37,13 +39,17 @@ export default function EnquiriesPage() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEnquiries, setTotalEnquiries] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchEnquiries();
       fetchStatistics();
     }
-  }, [user?.tenantId, statusFilter]);
+  }, [user?.tenantId, statusFilter, currentPage]);
 
   const fetchEnquiries = async () => {
     if (!user?.tenantId) return;
@@ -52,7 +58,8 @@ export default function EnquiriesPage() {
       setLoading(true);
       setError(null);
       const filters: any = {
-        limit: 100,
+        page: currentPage,
+        limit: limit,
         sortBy: 'createdAt',
         sortOrder: 'ASC',
       };
@@ -67,6 +74,8 @@ export default function EnquiriesPage() {
 
       const response = await marketplaceService.getEnquiries(user.tenantId, filters);
       setEnquiries(response.data || []);
+      setTotalEnquiries(response.meta.total);
+      setTotalPages(Math.ceil(response.meta.total / limit));
       console.log('✅ Enquiries loaded:', response.data.length, 'enquiries');
     } catch (error) {
       console.error('Error fetching enquiries:', error);
@@ -543,6 +552,39 @@ export default function EnquiriesPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Showing {((currentPage - 1) * limit) + 1} to {Math.min(currentPage * limit, totalEnquiries)} of {totalEnquiries} enquiries
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || loading}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="px-3 py-1 text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || loading}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import Pagination from '@/components/ui/pagination';
 import { 
   Plus, 
   Megaphone, 
@@ -38,6 +39,10 @@ export default function AnnouncementsPage() {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalAnnouncements, setTotalAnnouncements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     if (user?.tenantId) {
@@ -45,38 +50,31 @@ export default function AnnouncementsPage() {
         console.error('Failed to fetch on mount:', err);
       });
     }
-  }, [user?.tenantId, statusFilter]);
+  }, [user?.tenantId, statusFilter, currentPage]);
 
   const fetchAnnouncements = async () => {
     if (!user?.tenantId) return;
 
     try {
       setLoading(true);
-      setError(null);
       const filters: any = {
-        activeOnly: false, // Show all announcements including drafts, expired, etc.
-        pinnedOnly: false,
-        page: 1,
-        limit: 20,
+        page: currentPage,
+        limit: limit,
       };
-      
       if (statusFilter !== 'all') {
         filters.status = statusFilter;
       }
-      
-      const data = await announcementsService.getAll(user.tenantId, filters);
-      setAnnouncements(Array.isArray(data) ? data : []);
-      console.log('✅ Announcements loaded:', Array.isArray(data) ? data.length : 0, 'announcements');
-      console.log('📊 Announcements data:', data);
-    } catch (error: any) {
-      const status = error?.response?.status;
-      console.error('❌ Error fetching announcements:', error);
-      console.error('❌ Error response:', error?.response?.data);
-      
+      const response = await announcementsService.getAll(user.tenantId, filters);
+      setAnnouncements(response.data);
+      setTotalAnnouncements(response.total);
+      setTotalPages(Math.ceil(response.total / limit));
+    } catch (err: any) {
+      console.error('Error fetching announcements:', err);
+      setError(err.message || 'Failed to fetch announcements');
       // Don't show error for 404 (endpoint not implemented yet)
-      if (status === 404) {
+      if (err.response?.status === 404) {
         setError('Announcements API endpoint not available yet. Backend may need to be updated.');
-      } else if (status === 401 || status === 403) {
+      } else if (err.response?.status === 401 || err.response?.status === 403) {
         setError('Authentication error. Please check your permissions.');
       } else {
         setError('Failed to load announcements. API may not be deployed yet.');
@@ -521,6 +519,16 @@ export default function AnnouncementsPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Pagination */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalAnnouncements}
+        itemsPerPage={limit}
+        onPageChange={setCurrentPage}
+        loading={loading}
+      />
 
     </div>
   );

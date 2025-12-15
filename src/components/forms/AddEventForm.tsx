@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { eventsService } from '@/services/events.service';
+import { useToast } from '@/components/ui/toast';
 import { useAuthStore } from '@/store/authStore';
 
 interface AddEventFormProps {
@@ -27,6 +28,7 @@ interface EventFormData {
 
 export default function AddEventForm({ onSuccess, onCancel }: AddEventFormProps) {
   const { user } = useAuthStore();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
 
   const {
@@ -43,7 +45,7 @@ export default function AddEventForm({ onSuccess, onCancel }: AddEventFormProps)
 
   const onSubmit = async (data: EventFormData) => {
     if (!user?.tenantId) {
-      alert('User not authenticated');
+      error('Authentication Error', 'User not authenticated');
       return;
     }
 
@@ -63,10 +65,14 @@ export default function AddEventForm({ onSuccess, onCancel }: AddEventFormProps)
       };
 
       await eventsService.create(user.tenantId, eventData);
+      success('Success', 'Event created successfully');
       onSuccess();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Error creating event:', error);
-      alert(error.response?.data?.message || 'Failed to create event');
+      error('Error', error.response?.data?.message || 'Failed to create event');
     } finally {
       setLoading(false);
     }

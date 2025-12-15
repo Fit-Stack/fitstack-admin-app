@@ -11,6 +11,8 @@ import MarketplacePage from './pages/MarketplacePage';
 import EnquiriesPage from './pages/EnquiriesPage';
 import EventsPage from './pages/EventsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
+import { ToastContainer } from './components/ui/toast';
+import UsersPage from './pages/UsersPage';
 
 function App() {
   const { initialize, isAuthenticated, isLoading } = useAuthStore();
@@ -32,6 +34,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ToastContainer />
       <Routes>
         <Route
           path="/login"
@@ -48,6 +51,7 @@ function App() {
           <Route path="classes" element={<ClassesPage />} />
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="trainers" element={<TrainersPage />} />
+          <Route path="users" element={<UsersPage   />} />
           <Route path="marketplace" element={<MarketplacePage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />
           <Route path="events" element={<EventsPage />} />

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Upload, X, Star, MoveUp, MoveDown } from 'lucide-react';
 import { marketplaceService } from '@/services/marketplace.service';
+import { useToast } from '@/components/ui/toast';
 import { useAuthStore } from '@/store/authStore';
 
 interface AddProductFormProps {
@@ -35,6 +36,7 @@ interface ProductFormData {
 
 export default function AddProductForm({ onSuccess, onCancel }: AddProductFormProps) {
   const { user } = useAuthStore();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -74,14 +76,14 @@ export default function AddProductForm({ onSuccess, onCancel }: AddProductFormPr
     const files = Array.from(e.target.files || []);
     
     if (images.length + files.length > 10) {
-      alert('Maximum 10 images allowed');
+      error('Validation Error', 'Maximum 10 images allowed');
       return;
     }
 
     // Validate file size (5MB each)
     const invalidFiles = files.filter(file => file.size > 5 * 1024 * 1024);
     if (invalidFiles.length > 0) {
-      alert('Each image must be less than 5MB');
+      error('Validation Error', 'Each image must be less than 5MB');
       return;
     }
 
@@ -155,7 +157,7 @@ export default function AddProductForm({ onSuccess, onCancel }: AddProductFormPr
 
   const onSubmit = async (data: ProductFormData) => {
     if (!user?.tenantId) {
-      alert('User not authenticated');
+      error('Authentication Error', 'User not authenticated');
       return;
     }
 
@@ -204,10 +206,14 @@ export default function AddProductForm({ onSuccess, onCancel }: AddProductFormPr
       formData.append('imageMetadata', JSON.stringify(imageMetadata));
 
       await marketplaceService.createProduct(user.tenantId, formData);
+      success('Success', 'Product created successfully');
       onSuccess();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Error creating product:', error);
-      alert(error.response?.data?.message || 'Failed to create product');
+      error('Error', error.response?.data?.message || 'Failed to create product');
     } finally {
       setLoading(false);
     }

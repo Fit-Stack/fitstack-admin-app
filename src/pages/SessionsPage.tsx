@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, Clock, Users, Repeat } from 'lucide-react';
+import { Plus, Calendar, Clock, Users, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
 import { sessionsService, Session } from '@/services/sessions.service';
@@ -20,22 +20,32 @@ export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchSessions();
     }
-  }, [user?.tenantId]);
+  }, [user?.tenantId, currentPage]);
 
   const fetchSessions = async () => {
     if (!user?.tenantId) return;
 
     try {
       setLoading(true);
-      const data = await sessionsService.getAll(user.tenantId);
-      setSessions(data);
+      const response = await sessionsService.getAll(user.tenantId, {
+        page: currentPage,
+        limit: limit
+      });
+      setSessions(response.sessions);
+      setTotalSessions(response.total);
+      setTotalPages(response.totalPages);
     } catch (error) {
       console.error('Error fetching sessions:', error);
+      setSessions([]); // Set empty array to prevent undefined error
     } finally {
       setLoading(false);
     }
@@ -115,7 +125,7 @@ export default function SessionsPage() {
     },
   ];
 
-  const displaySessions = sessions.length > 0 ? sessions : (loading ? [] : mockSessions);
+  const displaySessions = (sessions || []).length > 0 ? sessions : (loading ? [] : mockSessions);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, any> = {
@@ -330,6 +340,39 @@ export default function SessionsPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Showing {((currentPage - 1) * limit) + 1} to {Math.min(currentPage * limit, totalSessions)} of {totalSessions} sessions
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || loading}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="px-3 py-1 text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || loading}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

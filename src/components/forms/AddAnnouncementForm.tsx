@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { announcementsService, Announcement } from '@/services/announcements.service';
+import { useToast } from '@/components/ui/toast';
 import { useAuthStore } from '@/store/authStore';
 
 interface AddAnnouncementFormProps {
@@ -28,6 +29,7 @@ interface AnnouncementFormData {
 
 export default function AddAnnouncementForm({ announcement, onSuccess, onCancel }: AddAnnouncementFormProps) {
   const { user } = useAuthStore();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const isEdit = !!announcement;
 
@@ -60,7 +62,7 @@ export default function AddAnnouncementForm({ announcement, onSuccess, onCancel 
 
   const onSubmit = async (data: AnnouncementFormData) => {
     if (!user?.tenantId) {
-      alert('User not authenticated');
+      error('Authentication Error', 'User not authenticated');
       return;
     }
 
@@ -87,14 +89,19 @@ export default function AddAnnouncementForm({ announcement, onSuccess, onCancel 
 
       if (isEdit) {
         await announcementsService.update(user.tenantId, announcement.id, announcementData);
+        success('Success', 'Announcement updated successfully');
       } else {
         await announcementsService.create(user.tenantId, announcementData);
+        success('Success', 'Announcement created successfully');
       }
 
       onSuccess();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Error saving announcement:', error);
-      alert(error.response?.data?.message || 'Failed to save announcement');
+      error('Error', error.response?.data?.message || 'Failed to save announcement');
     } finally {
       setLoading(false);
     }

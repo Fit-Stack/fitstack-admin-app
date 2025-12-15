@@ -93,12 +93,16 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchProducts();
     }
-  }, [user?.tenantId]);
+  }, [user?.tenantId, currentPage]);
 
   const fetchProducts = async () => {
     if (!user?.tenantId) return;
@@ -107,15 +111,18 @@ export default function MarketplacePage() {
       setLoading(true);
       setError(null);
       const response = await marketplaceService.getProducts(user.tenantId, {
-        limit: 50,
+        page: currentPage,
+        limit: limit,
       });
       
-      // Handle both old format (data/meta) and new format (products/total)
-      const data = response.products || response.data || [];
+      // Handle both old format (data/meta) and new format (data/total)
+      const data = response.data || [];
       
       // Ensure data is an array
       if (Array.isArray(data)) {
         setProducts(data);
+        const total = response.total || 0; setTotalProducts(total);
+        setTotalPages(Math.ceil(total / limit));
         console.log('✅ Products loaded:', data.length, 'products');
       } else {
         console.error('❌ Invalid products data:', data);
@@ -398,6 +405,41 @@ export default function MarketplacePage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Pagination */}
+      {totalProducts > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Showing {((currentPage - 1) * limit) + 1} to {Math.min(currentPage * limit, totalProducts)} of {totalProducts} products
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1 || loading}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <span className="px-3 py-1 text-sm">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || loading}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

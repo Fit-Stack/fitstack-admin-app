@@ -32,12 +32,22 @@ export interface EventFilters {
   dateFrom?: string;
   dateTo?: string;
   createdBy?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedEventsResponse {
+  events: CommunityEvent[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export const eventsService = {
-  async getAll(tenantId: string, filters?: EventFilters): Promise<CommunityEvent[]> {
+  async getAll(tenantId: string, filters?: EventFilters): Promise<PaginatedEventsResponse> {
     const { data } = await apiClient.get(`/tenants/${tenantId}/community-events`, {
-      params: filters,
+      params: { page: 1, limit: 20, ...filters },
     });
     return data;
   },

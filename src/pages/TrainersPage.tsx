@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Mail, Phone, Star, Award, Calendar } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import { trainersService, Trainer } from '@/services/trainers.service';
+import Pagination from '@/components/ui/pagination';
 import {
   Sheet,
   SheetContent,
@@ -20,12 +21,16 @@ export default function TrainersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddTrainerOpen, setIsAddTrainerOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalTrainers, setTotalTrainers] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchTrainers();
     }
-  }, [user?.tenantId]);
+  }, [user?.tenantId, currentPage]);
 
   const fetchTrainers = async () => {
     if (!user?.tenantId) return;
@@ -34,7 +39,8 @@ export default function TrainersPage() {
       setLoading(true);
       setError(null);
       const response = await trainersService.getAll(user.tenantId, {
-        limit: 50,
+        page: currentPage,
+        limit: limit
       });
       
       // Handle both old format (data/meta) and new format (trainers/total)
@@ -43,6 +49,8 @@ export default function TrainersPage() {
       // Ensure data is an array
       if (Array.isArray(data)) {
         setTrainers(data);
+        setTotalTrainers(response.total);
+        setTotalPages(Math.ceil(response.total / limit));
         console.log('✅ Trainers loaded:', data.length, 'trainers');
       } else {
         console.error('❌ Invalid trainers data:', data);
@@ -394,6 +402,17 @@ export default function TrainersPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Pagination */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalTrainers}
+        itemsPerPage={limit}
+        onPageChange={setCurrentPage}
+        loading={loading}
+      />
+
     </div>
   );
 }

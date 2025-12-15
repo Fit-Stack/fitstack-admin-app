@@ -83,9 +83,9 @@ export interface Enquiry {
 }
 
 export const marketplaceService = {
-  async getProducts(tenantId: string, filters?: ProductFilters): Promise<{ products?: Product[]; data?: Product[]; total: number }> {
+  async getProducts(tenantId: string, filters?: ProductFilters): Promise<{ data: Product[]; total: number; page: number; limit: number }> {
     const { data } = await apiClient.get(`/tenants/${tenantId}/marketplace/products`, {
-      params: filters,
+      params: { page: 1, limit: 10, ...filters },
     });
     return data;
   },

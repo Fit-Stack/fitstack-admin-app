@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Filter, Calendar, Users, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, Users, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/store/authStore';
-import { classesService, Class } from '@/services/classes.service';
+import { classesService, Class, ClassFilters } from '@/services/classes.service';
 import { format } from 'date-fns';
 import {
   Sheet,
@@ -24,26 +24,36 @@ export default function ClassesPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [publishingClassId, setPublishingClassId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalClasses, setTotalClasses] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchClasses();
     }
-  }, [user?.tenantId, selectedStatus]);
+  }, [user?.tenantId, selectedStatus, currentPage]);
 
   const fetchClasses = async () => {
     if (!user?.tenantId) return;
 
     try {
       setLoading(true);
-      const filters: any = {};
+      const filters: ClassFilters = {
+        page: currentPage,
+        limit: limit,
+      };
       if (selectedStatus !== 'all') {
         filters.status = selectedStatus;
       }
-      const data = await classesService.getAll(user.tenantId, filters);
-      setClasses(data);
+      const response = await classesService.getAll(user.tenantId, filters);
+      setClasses(response.classes);
+      setTotalClasses(response.total);
+      setTotalPages(response.totalPages);
     } catch (error) {
       console.error('Error fetching classes:', error);
+      setClasses([]); // Set empty array to prevent undefined error
     } finally {
       setLoading(false);
     }
@@ -70,7 +80,7 @@ export default function ClassesPage() {
     }
   };
 
-  const filteredClasses = classes.filter((classItem) =>
+  const filteredClasses = (classes || []).filter((classItem) =>
     classItem.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     classItem.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -383,6 +393,39 @@ export default function ClassesPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Showing {((currentPage - 1) * limit) + 1} to {Math.min(currentPage * limit, totalClasses)} of {totalClasses} classes
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || loading}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="px-3 py-1 text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || loading}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

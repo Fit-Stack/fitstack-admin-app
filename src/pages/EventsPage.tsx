@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, MapPin, Users, Lock, Globe } from 'lucide-react';
+import { Plus, Calendar, Users, MapPin, Globe, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
 import { eventsService, CommunityEvent } from '@/services/events.service';
@@ -21,12 +21,16 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEvents, setTotalEvents] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const limit = 10;
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchEvents();
     }
-  }, [user?.tenantId]);
+  }, [user?.tenantId, currentPage]);
 
   const fetchEvents = async () => {
     if (!user?.tenantId) return;
@@ -34,9 +38,14 @@ export default function EventsPage() {
     try {
       setLoading(true);
       setError(null);
-      const data = await eventsService.getAll(user.tenantId);
-      setEvents(data);
-      console.log('✅ Events loaded:', data.length, 'events');
+      const response = await eventsService.getAll(user.tenantId, {
+        page: currentPage,
+        limit: limit
+      });
+      setEvents(response.events);
+      setTotalEvents(response.total);
+      setTotalPages(Math.ceil(response.total / limit));
+      console.log('✅ Events loaded:', response.events.length, 'events');
     } catch (error: any) {
       console.error('❌ Error fetching events:', error?.message || error);
       setError('Failed to load events');
@@ -369,6 +378,37 @@ export default function EventsPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Showing {((currentPage - 1) * limit) + 1} to {Math.min(currentPage * limit, totalEvents)} of {totalEvents} events
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || loading}
+            >
+              Previous
+            </Button>
+            <span className="px-3 py-1 text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || loading}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

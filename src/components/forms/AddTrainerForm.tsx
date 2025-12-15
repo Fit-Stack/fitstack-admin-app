@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Plus, X } from 'lucide-react';
 import { trainersService } from '@/services/trainers.service';
+import { useToast } from '@/components/ui/toast';
 import { useAuthStore } from '@/store/authStore';
 
 interface AddTrainerFormProps {
@@ -29,6 +30,7 @@ interface TrainerFormData {
 
 export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormProps) {
   const { user } = useAuthStore();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [specializations, setSpecializations] = useState<string[]>([]);
   const [specializationInput, setSpecializationInput] = useState('');
@@ -115,12 +117,12 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
 
   const onSubmit = async (data: TrainerFormData) => {
     if (!user?.tenantId) {
-      alert('User not authenticated');
+      error('Authentication Error', 'User not authenticated');
       return;
     }
 
     if (specializations.length === 0) {
-      alert('Please add at least one specialization');
+      error('Validation Error', 'Please add at least one specialization');
       return;
     }
 
@@ -144,11 +146,14 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
       };
 
       await trainersService.create(user.tenantId, trainerData);
-      alert('Trainer created successfully!');
+      success('Success', 'Trainer created successfully!');
       onSuccess();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Error creating trainer:', error);
-      alert(error.response?.data?.message || 'Failed to create trainer. Please try again.');
+      error('Error', error.response?.data?.message || 'Failed to create trainer. Please try again.');
     } finally {
       setLoading(false);
     }

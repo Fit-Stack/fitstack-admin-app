@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Loader2 } from 'lucide-react';
 import { sessionsService } from '@/services/sessions.service';
+import { trainersService, Trainer } from '@/services/trainers.service';
+import { useToast } from '@/components/ui/toast';
 import { useAuthStore } from '@/store/authStore';
 
 interface AddSessionFormProps {
@@ -13,27 +16,32 @@ interface AddSessionFormProps {
 }
 
 interface SessionFormData {
-  classId: string;
-  instructorId: string;
-  startDate: string;
-  endDate?: string;
-  recurrenceType: 'none' | 'daily' | 'weekly' | 'monthly';
-  recurrenceDays?: string[];
-  timeSlot: {
-    startTime: string;
-    endTime: string;
+  title: string;
+  description?: string;
+  instructorId?: string;
+  recurrencePattern: {
+    type: 'none' | 'daily' | 'weekly' | 'monthly';
+    days?: string[];
+    time: string;
+    durationMinutes: number;
+    startDate: string;
+    endDate: string;
   };
-  capacity: number;
-  location?: string;
-  isDropIn: boolean;
-  dropInPrice?: number;
-  currency: string;
+  capacity?: number;
+  isPaid: boolean;
+  pricePerAttendance?: number;
+  currency?: string;
+  category?: string;
 }
 
 export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormProps) {
   const { user } = useAuthStore();
+  const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [loadingTrainers, setLoadingTrainers] = useState(false);
+  const [selectedTrainer, setSelectedTrainer] = useState<string>('');
 
   const {
     register,
@@ -42,15 +50,38 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
     formState: { errors },
   } = useForm<SessionFormData>({
     defaultValues: {
-      recurrenceType: 'none',
+      recurrencePattern: {
+        type: 'none',
+        time: '17:00',
+        durationMinutes: 60,
+      },
+      isPaid: false,
       currency: 'INR',
-      isDropIn: false,
       capacity: 20,
     },
   });
 
-  const recurrenceType = watch('recurrenceType');
-  const isDropIn = watch('isDropIn');
+  const recurrenceType = watch('recurrencePattern.type');
+  const isPaid = watch('isPaid');
+
+  useEffect(() => {
+    if (user?.tenantId) {
+      fetchTrainers();
+    }
+  }, [user?.tenantId]);
+
+  const fetchTrainers = async () => {
+    if (!user?.tenantId) return;
+    try {
+      setLoadingTrainers(true);
+      const response = await trainersService.getAll(user.tenantId);
+      setTrainers(response.trainers || response.data || []);
+    } catch (error) {
+      console.error('Error fetching trainers:', error);
+    } finally {
+      setLoadingTrainers(false);
+    }
+  };
 
   const daysOfWeek = [
     { value: 'monday', label: 'Mon' },
@@ -70,12 +101,12 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
 
   const onSubmit = async (data: SessionFormData) => {
     if (!user?.tenantId) {
-      alert('User not authenticated');
+      error('Authentication Error', 'User not authenticated');
       return;
     }
 
     if (recurrenceType === 'weekly' && selectedDays.length === 0) {
-      alert('Please select at least one day for weekly recurrence');
+      error('Validation Error', 'Please select at least one day for weekly recurrence');
       return;
     }
 
@@ -83,31 +114,33 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
       setLoading(true);
 
       const sessionData = {
-        classId: data.classId,
-        instructorId: data.instructorId,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        recurrence: {
-          type: data.recurrenceType,
+        title: data.title,
+        description: data.description,
+        instructorId: selectedTrainer || undefined,
+        recurrencePattern: {
+          type: data.recurrencePattern.type === 'none' ? 'daily' : data.recurrencePattern.type,
           days: recurrenceType === 'weekly' ? selectedDays : undefined,
+          time: data.recurrencePattern.time,
+          durationMinutes: data.recurrencePattern.durationMinutes,
+          startDate: data.recurrencePattern.startDate,
+          endDate: data.recurrencePattern.endDate,
         },
-        timeSlot: {
-          startTime: data.timeSlot.startTime,
-          endTime: data.timeSlot.endTime,
-        },
-        capacity: Number(data.capacity),
-        location: data.location,
-        isDropIn: data.isDropIn,
-        dropInPrice: data.isDropIn ? Number(data.dropInPrice) : undefined,
+        capacity: data.capacity ? Number(data.capacity) : undefined,
+        isPaid: data.isPaid,
+        pricePerAttendance: data.isPaid ? Number(data.pricePerAttendance) : undefined,
         currency: data.currency,
+        category: data.category,
       };
 
       await sessionsService.create(user.tenantId, sessionData);
-      alert('Session created successfully!');
+      success('Success', 'Session created successfully!');
       onSuccess();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error: any) {
       console.error('Error creating session:', error);
-      alert(error.response?.data?.message || 'Failed to create session. Please try again.');
+      error('Error', error.response?.data?.message || 'Failed to create session. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -120,47 +153,71 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
         <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
 
         <div>
-          <Label htmlFor="classId">Class ID *</Label>
+          <Label htmlFor="title">Session Title *</Label>
           <Input
-            id="classId"
-            {...register('classId', { required: 'Class ID is required' })}
-            placeholder="Enter class ID"
+            id="title"
+            {...register('title', { required: 'Title is required' })}
+            placeholder="e.g., Morning Yoga, HIIT Training"
           />
-          {errors.classId && <p className="text-sm text-red-600 mt-1">{errors.classId.message}</p>}
-          <p className="text-xs text-gray-500 mt-1">
-            You can find class IDs in the Classes section
-          </p>
+          {errors.title && <p className="text-sm text-red-600 mt-1">{errors.title.message}</p>}
         </div>
 
         <div>
-          <Label htmlFor="instructorId">Instructor ID *</Label>
-          <Input
-            id="instructorId"
-            {...register('instructorId', { required: 'Instructor ID is required' })}
-            placeholder="Enter instructor ID"
-          />
-          {errors.instructorId && (
-            <p className="text-sm text-red-600 mt-1">{errors.instructorId.message}</p>
-          )}
-        </div>
-
-        <div>
-          <Label htmlFor="location">Location</Label>
-          <Input
-            id="location"
-            {...register('location')}
-            placeholder="e.g., Studio A, Gym Floor 2"
+          <Label htmlFor="description">Description</Label>
+          <textarea
+            id="description"
+            {...register('description')}
+            placeholder="Describe your session..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            rows={3}
           />
         </div>
 
         <div>
-          <Label htmlFor="capacity">Capacity *</Label>
+          <Label htmlFor="instructor">Instructor</Label>
+          <SearchableSelect
+            options={trainers.map((trainer) => ({
+              value: trainer.id,
+              label: `${trainer.user?.firstName || ''} ${trainer.user?.lastName || ''}`.trim(),
+              subtitle: trainer.specializations.slice(0, 2).join(', '),
+            }))}
+            value={selectedTrainer}
+            onChange={setSelectedTrainer}
+            placeholder={loadingTrainers ? 'Loading trainers...' : 'Select a trainer (optional)'}
+            disabled={loadingTrainers}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <select
+            id="category"
+            {...register('category')}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">Select category</option>
+            <option value="yoga">Yoga</option>
+            <option value="hiit">HIIT</option>
+            <option value="strength">Strength Training</option>
+            <option value="cardio">Cardio</option>
+            <option value="dance">Dance</option>
+            <option value="pilates">Pilates</option>
+            <option value="crossfit">CrossFit</option>
+            <option value="boxing">Boxing</option>
+            <option value="swimming">Swimming</option>
+            <option value="cycling">Cycling</option>
+            <option value="meditation">Meditation</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <Label htmlFor="capacity">Capacity</Label>
           <Input
             id="capacity"
             type="number"
             min="1"
             {...register('capacity', {
-              required: 'Capacity is required',
               min: { value: 1, message: 'Capacity must be at least 1' },
             })}
             placeholder="Maximum number of participants"
@@ -179,7 +236,7 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
           <Label htmlFor="recurrenceType">Recurrence Type *</Label>
           <select
             id="recurrenceType"
-            {...register('recurrenceType', { required: 'Recurrence type is required' })}
+            {...register('recurrencePattern.type', { required: 'Recurrence type is required' })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="none">One-time Session</option>
@@ -195,20 +252,24 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
             <Input
               id="startDate"
               type="date"
-              {...register('startDate', { required: 'Start date is required' })}
+              {...register('recurrencePattern.startDate', { required: 'Start date is required' })}
             />
-            {errors.startDate && (
-              <p className="text-sm text-red-600 mt-1">{errors.startDate.message}</p>
+            {errors.recurrencePattern?.startDate && (
+              <p className="text-sm text-red-600 mt-1">{errors.recurrencePattern.startDate.message}</p>
             )}
           </div>
 
-          {recurrenceType !== 'none' && (
-            <div>
-              <Label htmlFor="endDate">End Date</Label>
-              <Input id="endDate" type="date" {...register('endDate')} />
-              <p className="text-xs text-gray-500 mt-1">Leave empty for ongoing</p>
-            </div>
-          )}
+          <div>
+            <Label htmlFor="endDate">End Date *</Label>
+            <Input 
+              id="endDate" 
+              type="date" 
+              {...register('recurrencePattern.endDate', { required: 'End date is required' })} 
+            />
+            {errors.recurrencePattern?.endDate && (
+              <p className="text-sm text-red-600 mt-1">{errors.recurrencePattern.endDate.message}</p>
+            )}
+          </div>
         </div>
 
         {recurrenceType === 'weekly' && (
@@ -235,26 +296,34 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="startTime">Start Time *</Label>
+            <Label htmlFor="time">Start Time *</Label>
             <Input
-              id="startTime"
+              id="time"
               type="time"
-              {...register('timeSlot.startTime', { required: 'Start time is required' })}
+              {...register('recurrencePattern.time', { required: 'Start time is required' })}
             />
-            {errors.timeSlot?.startTime && (
-              <p className="text-sm text-red-600 mt-1">{errors.timeSlot.startTime.message}</p>
+            {errors.recurrencePattern?.time && (
+              <p className="text-sm text-red-600 mt-1">{errors.recurrencePattern.time.message}</p>
             )}
           </div>
 
           <div>
-            <Label htmlFor="endTime">End Time *</Label>
+            <Label htmlFor="durationMinutes">Duration (minutes) *</Label>
             <Input
-              id="endTime"
-              type="time"
-              {...register('timeSlot.endTime', { required: 'End time is required' })}
+              id="durationMinutes"
+              type="number"
+              min="15"
+              max="240"
+              step="15"
+              {...register('recurrencePattern.durationMinutes', { 
+                required: 'Duration is required',
+                min: { value: 15, message: 'Duration must be at least 15 minutes' },
+                max: { value: 240, message: 'Duration cannot exceed 4 hours' }
+              })}
+              placeholder="60"
             />
-            {errors.timeSlot?.endTime && (
-              <p className="text-sm text-red-600 mt-1">{errors.timeSlot.endTime.message}</p>
+            {errors.recurrencePattern?.durationMinutes && (
+              <p className="text-sm text-red-600 mt-1">{errors.recurrencePattern.durationMinutes.message}</p>
             )}
           </div>
         </div>
@@ -267,31 +336,31 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
-            id="isDropIn"
-            {...register('isDropIn')}
+            id="isPaid"
+            {...register('isPaid')}
             className="h-4 w-4 rounded border-gray-300"
           />
-          <Label htmlFor="isDropIn" className="cursor-pointer">
-            Allow Drop-In (Pay per session)
+          <Label htmlFor="isPaid" className="cursor-pointer">
+            Require Payment for Session
           </Label>
         </div>
 
-        {isDropIn && (
+        {isPaid && (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="dropInPrice">Drop-In Price *</Label>
+              <Label htmlFor="pricePerAttendance">Price per Attendance *</Label>
               <Input
-                id="dropInPrice"
+                id="pricePerAttendance"
                 type="number"
                 min="0"
                 step="0.01"
-                {...register('dropInPrice', {
-                  required: isDropIn ? 'Drop-in price is required' : false,
+                {...register('pricePerAttendance', {
+                  required: isPaid ? 'Drop-in price is required' : false,
                 })}
                 placeholder="0.00"
               />
-              {errors.dropInPrice && (
-                <p className="text-sm text-red-600 mt-1">{errors.dropInPrice.message}</p>
+              {errors.pricePerAttendance && (
+                <p className="text-sm text-red-600 mt-1">{errors.pricePerAttendance.message}</p>
               )}
             </div>
 
