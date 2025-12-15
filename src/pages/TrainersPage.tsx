@@ -1,10 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Mail, Phone, Star, Award, Calendar } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus, Mail, Phone, Star, Award, Calendar, Search, Filter, X, Check, UserCheck } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useAuthStore } from '@/store/authStore';
-import { trainersService, Trainer } from '@/services/trainers.service';
+import { 
+  trainersService, 
+  Trainer, 
+  TrainerSpecialization,
+  TrainerExperienceLevel,
+  TrainerAvailabilityStatus,
+  TrainerFilters 
+} from '@/services/trainers.service';
+
+// Human readable labels for specializations
+const SPECIALIZATION_LABELS: Record<TrainerSpecialization, string> = {
+  [TrainerSpecialization.STRENGTH_TRAINING]: 'Strength Training',
+  [TrainerSpecialization.CARDIO]: 'Cardio',
+  [TrainerSpecialization.YOGA]: 'Yoga',
+  [TrainerSpecialization.PILATES]: 'Pilates',
+  [TrainerSpecialization.CROSSFIT]: 'CrossFit',
+  [TrainerSpecialization.BODYBUILDING]: 'Bodybuilding',
+  [TrainerSpecialization.WEIGHT_LOSS]: 'Weight Loss',
+  [TrainerSpecialization.NUTRITION]: 'Nutrition',
+  [TrainerSpecialization.SPORTS_SPECIFIC]: 'Sports Specific',
+  [TrainerSpecialization.REHABILITATION]: 'Rehabilitation',
+  [TrainerSpecialization.FUNCTIONAL_TRAINING]: 'Functional Training',
+  [TrainerSpecialization.HIIT]: 'HIIT',
+  [TrainerSpecialization.MARTIAL_ARTS]: 'Martial Arts',
+  [TrainerSpecialization.DANCE_FITNESS]: 'Dance Fitness',
+  [TrainerSpecialization.SENIOR_FITNESS]: 'Senior Fitness',
+  [TrainerSpecialization.PRENATAL_POSTNATAL]: 'Prenatal/Postnatal',
+};
 import Pagination from '@/components/ui/pagination';
 import {
   Sheet,
@@ -14,6 +44,22 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import AddTrainerForm from '@/components/forms/AddTrainerForm';
+
+// Human readable labels for experience levels
+const EXPERIENCE_LABELS: Record<TrainerExperienceLevel, string> = {
+  [TrainerExperienceLevel.BEGINNER]: 'Beginner (0-2 yrs)',
+  [TrainerExperienceLevel.INTERMEDIATE]: 'Intermediate (2-5 yrs)',
+  [TrainerExperienceLevel.ADVANCED]: 'Advanced (5-10 yrs)',
+  [TrainerExperienceLevel.EXPERT]: 'Expert (10+ yrs)',
+};
+
+// Human readable labels for availability status
+const AVAILABILITY_LABELS: Record<TrainerAvailabilityStatus, string> = {
+  [TrainerAvailabilityStatus.AVAILABLE]: 'Available',
+  [TrainerAvailabilityStatus.BUSY]: 'Busy',
+  [TrainerAvailabilityStatus.ON_LEAVE]: 'On Leave',
+  [TrainerAvailabilityStatus.INACTIVE]: 'Inactive',
+};
 
 export default function TrainersPage() {
   const { user } = useAuthStore();
@@ -26,22 +72,70 @@ export default function TrainersPage() {
   const [totalPages, setTotalPages] = useState(0);
   const limit = 10;
 
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSpecializations, setSelectedSpecializations] = useState<TrainerSpecialization[]>([]);
+  const [selectedExperienceLevel, setSelectedExperienceLevel] = useState<TrainerExperienceLevel | ''>('');
+  const [selectedAvailabilityStatus, setSelectedAvailabilityStatus] = useState<TrainerAvailabilityStatus | ''>('');
+  const [offersDemoSession, setOffersDemoSession] = useState<boolean | undefined>(undefined);
+  const [minRating, setMinRating] = useState<number | undefined>(undefined);
+
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedSpecializations, selectedExperienceLevel, selectedAvailabilityStatus, offersDemoSession, minRating]);
+
   useEffect(() => {
     if (user?.tenantId) {
       fetchTrainers();
     }
-  }, [user?.tenantId, currentPage]);
+  }, [user?.tenantId, currentPage, debouncedSearch, selectedSpecializations, selectedExperienceLevel, selectedAvailabilityStatus, offersDemoSession, minRating]);
 
-  const fetchTrainers = async () => {
+  const fetchTrainers = useCallback(async () => {
     if (!user?.tenantId) return;
 
     try {
       setLoading(true);
       setError(null);
-      const response = await trainersService.getAll(user.tenantId, {
+
+      // Build filters object
+      const filters: TrainerFilters = {
         page: currentPage,
-        limit: limit
-      });
+        limit: limit,
+      };
+
+      if (debouncedSearch) {
+        filters.search = debouncedSearch;
+      }
+      if (selectedSpecializations.length > 0) {
+        filters.specializations = selectedSpecializations;
+      }
+      if (selectedExperienceLevel) {
+        filters.experienceLevel = selectedExperienceLevel;
+      }
+      if (selectedAvailabilityStatus) {
+        filters.availabilityStatus = selectedAvailabilityStatus;
+      }
+      if (offersDemoSession !== undefined) {
+        filters.offersDemoSession = offersDemoSession;
+      }
+      if (minRating !== undefined) {
+        filters.minRating = minRating;
+      }
+
+      const response = await trainersService.getAll(user.tenantId, filters);
       
       // Handle both old format (data/meta) and new format (trainers/total)
       const data = response.trainers || response.data || [];
@@ -64,107 +158,29 @@ export default function TrainersPage() {
     } finally {
       setLoading(false);
     }
+  }, [user?.tenantId, currentPage, debouncedSearch, selectedSpecializations, selectedExperienceLevel, selectedAvailabilityStatus, offersDemoSession, minRating]);
+
+  const toggleSpecialization = (spec: TrainerSpecialization) => {
+    setSelectedSpecializations((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
+    );
   };
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedSpecializations([]);
+    setSelectedExperienceLevel('');
+    setSelectedAvailabilityStatus('');
+    setOffersDemoSession(undefined);
+    setMinRating(undefined);
+  };
+
+  const hasActiveFilters = searchQuery || selectedSpecializations.length > 0 || selectedExperienceLevel || selectedAvailabilityStatus || offersDemoSession !== undefined || minRating !== undefined;
 
   const handleAddTrainerSuccess = () => {
     setIsAddTrainerOpen(false);
     fetchTrainers();
   };
-
-  // Mock data as fallback - matches Trainer interface
-  const mockTrainers: Trainer[] = [
-    {
-      id: '1',
-      userId: 'user-1',
-      user: {
-        id: 'user-1',
-        firstName: 'John',
-        lastName: 'Smith',
-        email: 'john.smith@fitstack.com',
-        phone: '+1 (555) 123-4567',
-      },
-      bio: 'Certified personal trainer with 10+ years of experience',
-      specializations: ['HIIT', 'Strength Training', 'CrossFit'],
-      experienceLevel: 'expert',
-      yearsOfExperience: 10,
-      certifications: ['ACE-CPT', 'NASM-PES'],
-      rating: 4.8,
-      totalReviews: 156,
-      totalSessionsConducted: 245,
-      availabilityStatus: 'available',
-      offersDemoSession: true,
-      demoSessionDurationMinutes: 30,
-      hourlyRate: 5000,
-      weeklyAvailability: {
-        monday: ['09:00-12:00', '14:00-18:00'],
-        wednesday: ['09:00-12:00', '14:00-18:00'],
-        friday: ['09:00-12:00', '14:00-18:00'],
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      userId: 'user-2',
-      user: {
-        id: 'user-2',
-        firstName: 'Sarah',
-        lastName: 'Johnson',
-        email: 'sarah.johnson@fitstack.com',
-        phone: '+1 (555) 234-5678',
-      },
-      bio: 'Yoga instructor specializing in mindfulness and flexibility',
-      specializations: ['Yoga', 'Pilates', 'Meditation'],
-      experienceLevel: 'advanced',
-      yearsOfExperience: 8,
-      certifications: ['RYT-500', 'Pilates Certified'],
-      rating: 4.9,
-      totalReviews: 203,
-      totalSessionsConducted: 312,
-      availabilityStatus: 'available',
-      offersDemoSession: true,
-      demoSessionDurationMinutes: 45,
-      hourlyRate: 4500,
-      weeklyAvailability: {
-        tuesday: ['07:00-11:00', '17:00-20:00'],
-        thursday: ['07:00-11:00', '17:00-20:00'],
-        saturday: ['08:00-12:00'],
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '3',
-      userId: 'user-3',
-      user: {
-        id: 'user-3',
-        firstName: 'Mike',
-        lastName: 'Davis',
-        email: 'mike.davis@fitstack.com',
-        phone: '+1 (555) 345-6789',
-      },
-      bio: 'Professional cycling coach and endurance specialist',
-      specializations: ['Cycling', 'Cardio', 'Endurance'],
-      experienceLevel: 'advanced',
-      yearsOfExperience: 6,
-      certifications: ['USA Cycling Level 2'],
-      rating: 4.7,
-      totalReviews: 128,
-      totalSessionsConducted: 198,
-      availabilityStatus: 'busy',
-      offersDemoSession: false,
-      hourlyRate: 4000,
-      weeklyAvailability: {
-        monday: ['18:00-21:00'],
-        wednesday: ['18:00-21:00'],
-        friday: ['18:00-21:00'],
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  const displayTrainers = trainers.length > 0 ? trainers : (loading ? [] : mockTrainers);
 
   return (
     <div className="space-y-6">
@@ -180,11 +196,151 @@ export default function TrainersPage() {
         </Button>
       </div>
 
+      {/* Search and Filter Bar */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Toggle Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              {/* Toggle Filters Button */}
+              <Button
+                variant={showFilters ? 'default' : 'outline'}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    {[
+                      selectedSpecializations.length > 0,
+                      !!selectedExperienceLevel,
+                      !!selectedAvailabilityStatus,
+                      offersDemoSession !== undefined,
+                      minRating !== undefined,
+                    ].filter(Boolean).length}
+                  </Badge>
+                )}
+              </Button>
+
+              {/* Clear Filters */}
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearAllFilters} className="flex items-center gap-2">
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {/* Expandable Filters */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+                {/* Experience Level Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Experience Level</Label>
+                  <select
+                    value={selectedExperienceLevel}
+                    onChange={(e) => setSelectedExperienceLevel(e.target.value as TrainerExperienceLevel | '')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Levels</option>
+                    {Object.entries(EXPERIENCE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Availability Status Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Availability</Label>
+                  <select
+                    value={selectedAvailabilityStatus}
+                    onChange={(e) => setSelectedAvailabilityStatus(e.target.value as TrainerAvailabilityStatus | '')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Status</option>
+                    {Object.entries(AVAILABILITY_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Demo Session Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Demo Sessions</Label>
+                  <select
+                    value={offersDemoSession === undefined ? '' : offersDemoSession ? 'true' : 'false'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOffersDemoSession(val === '' ? undefined : val === 'true');
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All</option>
+                    <option value="true">Offers Demo</option>
+                    <option value="false">No Demo</option>
+                  </select>
+                </div>
+
+                {/* Min Rating Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Minimum Rating</Label>
+                  <select
+                    value={minRating ?? ''}
+                    onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">Any Rating</option>
+                    <option value="4">4+ Stars</option>
+                    <option value="3">3+ Stars</option>
+                    <option value="2">2+ Stars</option>
+                  </select>
+                </div>
+
+                {/* Specializations Filter - Full Width */}
+                <div className="md:col-span-2 lg:col-span-4">
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Specializations</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.values(TrainerSpecialization).map((spec) => (
+                      <button
+                        key={spec}
+                        type="button"
+                        onClick={() => toggleSpecialization(spec)}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          selectedSpecializations.includes(spec)
+                            ? 'bg-primary text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {selectedSpecializations.includes(spec) && <Check className="h-3 w-3" />}
+                        {SPECIALIZATION_LABELS[spec]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-700">{trainers.length}</div>
+            <div className="text-2xl font-bold text-gray-700">{totalTrainers}</div>
             <p className="text-sm text-gray-500">Total Trainers</p>
           </CardContent>
         </Card>
@@ -232,22 +388,28 @@ export default function TrainersPage() {
       )}
 
       {/* Empty State */}
-      {!loading && displayTrainers.length === 0 && (
+      {!loading && trainers.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-gray-600">No trainers found. Add your first trainer to get started!</p>
-            <Button className="mt-4" onClick={() => setIsAddTrainerOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Trainer
-            </Button>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={UserCheck}
+              title={hasActiveFilters ? "No trainers match your filters" : "No trainers yet"}
+              description={hasActiveFilters 
+                ? "Try adjusting your filters or search query to find trainers."
+                : "Add your first trainer to start managing your training staff."
+              }
+              actionLabel={hasActiveFilters ? "Clear Filters" : "Add Trainer"}
+              onAction={hasActiveFilters ? clearAllFilters : () => setIsAddTrainerOpen(true)}
+              actionIcon={hasActiveFilters ? X : Plus}
+            />
           </CardContent>
         </Card>
       )}
 
       {/* Trainers Grid */}
-      {!loading && displayTrainers.length > 0 && (
+      {!loading && trainers.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayTrainers.map((trainer) => (
+          {trainers.map((trainer: Trainer) => (
             <Card key={trainer.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -337,7 +499,7 @@ export default function TrainersPage() {
                   <div className="flex flex-wrap gap-1">
                     {trainer.specializations.slice(0, 3).map((spec) => (
                       <Badge key={spec} variant="outline" className="text-xs">
-                        {spec}
+                        {SPECIALIZATION_LABELS[spec as TrainerSpecialization] || spec}
                       </Badge>
                     ))}
                     {trainer.specializations.length > 3 && (

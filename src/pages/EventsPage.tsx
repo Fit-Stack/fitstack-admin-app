@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, Users, MapPin, Globe, Lock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus, Calendar, Users, MapPin, Globe, Lock, CalendarDays, Filter, X, Search } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
-import { eventsService, CommunityEvent } from '@/services/events.service';
+import { eventsService, CommunityEvent, EventFilters } from '@/services/events.service';
 import {
   Sheet,
   SheetContent,
@@ -14,6 +17,34 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import AddEventForm from '@/components/forms/AddEventForm';
+
+// Event status options
+const STATUS_OPTIONS = [
+  { value: 'pending_approval', label: 'Pending Approval' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'completed', label: 'Completed' },
+];
+
+// Visibility options
+const VISIBILITY_OPTIONS = [
+  { value: 'public', label: 'Public' },
+  { value: 'friends_only', label: 'Friends Only' },
+  { value: 'invite_only', label: 'Invite Only' },
+];
+
+// Activity type options
+const ACTIVITY_TYPE_OPTIONS = [
+  { value: 'sparring', label: 'Sparring' },
+  { value: 'spotting', label: 'Spotting' },
+  { value: 'challenge', label: 'Challenge' },
+  { value: 'group_workout', label: 'Group Workout' },
+  { value: 'running', label: 'Running' },
+  { value: 'cycling', label: 'Cycling' },
+  { value: 'sports_match', label: 'Sports Match' },
+  { value: 'training_partner', label: 'Training Partner' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function EventsPage() {
   const { user } = useAuthStore();
@@ -26,96 +57,76 @@ export default function EventsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const limit = 10;
 
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [visibilityFilter, setVisibilityFilter] = useState('');
+  const [activityTypeFilter, setActivityTypeFilter] = useState('');
+
+  const hasActiveFilters = searchQuery || statusFilter || visibilityFilter || activityTypeFilter;
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, visibilityFilter, activityTypeFilter]);
+
   useEffect(() => {
     if (user?.tenantId) {
       fetchEvents();
     }
-  }, [user?.tenantId, currentPage]);
+  }, [user?.tenantId, currentPage, debouncedSearch, statusFilter, visibilityFilter, activityTypeFilter]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     if (!user?.tenantId) return;
 
     try {
       setLoading(true);
       setError(null);
-      const response = await eventsService.getAll(user.tenantId, {
+      
+      const filters: EventFilters = {
         page: currentPage,
-        limit: limit
-      });
-      setEvents(response.events);
-      setTotalEvents(response.total);
-      setTotalPages(Math.ceil(response.total / limit));
-      console.log('✅ Events loaded:', response.events.length, 'events');
+        limit: limit,
+      };
+
+      if (debouncedSearch) filters.search = debouncedSearch;
+      if (statusFilter) filters.status = statusFilter;
+      if (visibilityFilter) filters.visibility = visibilityFilter;
+      if (activityTypeFilter) filters.activityType = activityTypeFilter;
+
+      const response = await eventsService.getAll(user.tenantId, filters);
+      setEvents(response.events || []);
+      setTotalEvents(response.total || 0);
+      setTotalPages(Math.ceil((response.total || 0) / limit));
     } catch (error: any) {
-      console.error('❌ Error fetching events:', error?.message || error);
+      console.error('Error fetching events:', error?.message || error);
       setError('Failed to load events');
       setEvents([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.tenantId, currentPage, debouncedSearch, statusFilter, visibilityFilter, activityTypeFilter]);
 
   const handleAddEventSuccess = () => {
     setIsAddEventOpen(false);
     fetchEvents();
   };
 
-  // Mock data as fallback
-  const mockEvents: CommunityEvent[] = [
-    {
-      id: '1',
-      tenantId: user?.tenantId || '',
-      title: 'Summer Fitness Challenge',
-      description: 'Join our 30-day fitness challenge with prizes for top performers',
-      activityType: 'challenge',
-      startDate: new Date(2025, 11, 20).toISOString(),
-      endDate: new Date(2026, 0, 20).toISOString(),
-      location: 'Main Gym Floor',
-      capacity: 100,
-      participantCount: 78,
-      visibility: 'public',
-      status: 'approved',
-      createdBy: user?.id || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      tenantId: user?.tenantId || '',
-      title: 'Yoga Retreat Weekend',
-      description: 'Relaxing weekend yoga retreat with meditation and wellness workshops',
-      activityType: 'retreat',
-      startDate: new Date(2025, 11, 15).toISOString(),
-      endDate: new Date(2025, 11, 17).toISOString(),
-      location: 'Mountain Resort',
-      capacity: 30,
-      participantCount: 30,
-      visibility: 'public',
-      status: 'approved',
-      createdBy: user?.id || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '3',
-      tenantId: user?.tenantId || '',
-      title: 'Nutrition Workshop',
-      description: 'Learn about meal planning and nutrition for optimal fitness results',
-      activityType: 'workshop',
-      startDate: new Date(2025, 11, 14, 18, 0).toISOString(),
-      endDate: new Date(2025, 11, 14, 20, 0).toISOString(),
-      location: 'Conference Room',
-      capacity: 50,
-      participantCount: 42,
-      visibility: 'public',
-      status: 'approved',
-      createdBy: user?.id || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  const displayEvents = events.length > 0 ? events : (loading ? [] : mockEvents);
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('');
+    setVisibilityFilter('');
+    setActivityTypeFilter('');
+  };
 
   const formatDate = (dateString: string | undefined | null, formatStr: string = 'MMM dd, yyyy'): string => {
     if (!dateString) return 'N/A';
@@ -187,6 +198,99 @@ export default function EventsPage() {
         </Button>
       </div>
 
+      {/* Filter Bar */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Filter Toggle */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search events by title, description, or location..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              <Button
+                variant={showFilters ? 'default' : 'outline'}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    !
+                  </Badge>
+                )}
+              </Button>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearAllFilters} className="flex items-center gap-2">
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {/* Expandable Filters */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                {/* Status Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Status</Label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Status</option>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Visibility Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Visibility</Label>
+                  <select
+                    value={visibilityFilter}
+                    onChange={(e) => setVisibilityFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Visibility</option>
+                    {VISIBILITY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Activity Type Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Activity Type</Label>
+                  <select
+                    value={activityTypeFilter}
+                    onChange={(e) => setActivityTypeFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Types</option>
+                    {ACTIVITY_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Loading State */}
       {loading && (
         <div className="text-center py-12">
@@ -206,9 +310,9 @@ export default function EventsPage() {
       )}
 
       {/* Events List */}
-      {!loading && displayEvents.length > 0 && (
+      {!loading && events.length > 0 && (
         <div className="space-y-4">
-          {displayEvents.map((event) => {
+          {events.map((event) => {
             const participantCount = event.participantCount || 0;
             const registrationStatus = getRegistrationStatus(participantCount, event.capacity);
           
@@ -349,14 +453,20 @@ export default function EventsPage() {
       )}
 
       {/* Empty State */}
-      {!loading && !error && displayEvents.length === 0 && (
+      {!loading && !error && events.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-gray-600">No events found. Create your first event to get started!</p>
-            <Button className="mt-4" onClick={() => setIsAddEventOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Event
-            </Button>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={CalendarDays}
+              title={hasActiveFilters ? "No events match your filters" : "No events yet"}
+              description={hasActiveFilters 
+                ? "Try adjusting your filters to find events."
+                : "Create your first community event to engage with your members."
+              }
+              actionLabel={hasActiveFilters ? "Clear Filters" : "Create Event"}
+              onAction={hasActiveFilters ? clearAllFilters : () => setIsAddEventOpen(true)}
+              actionIcon={hasActiveFilters ? X : Plus}
+            />
           </CardContent>
         </Card>
       )}

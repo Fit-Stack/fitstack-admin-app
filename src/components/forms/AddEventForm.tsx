@@ -70,9 +70,9 @@ export default function AddEventForm({ onSuccess, onCancel }: AddEventFormProps)
       setTimeout(() => {
         window.location.reload();
       }, 1000);
-    } catch (error: any) {
-      console.error('Error creating event:', error);
-      error('Error', error.response?.data?.message || 'Failed to create event');
+    } catch (err: any) {
+      console.error('Error creating event:', err);
+      error('Error', err.response?.data?.message || 'Failed to create event');
     } finally {
       setLoading(false);
     }

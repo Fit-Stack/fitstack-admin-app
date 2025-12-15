@@ -26,6 +26,7 @@ export interface CommunityEvent {
 }
 
 export interface EventFilters {
+  search?: string;
   status?: string;
   visibility?: string;
   activityType?: string;

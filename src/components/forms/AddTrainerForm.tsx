@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Plus, X } from 'lucide-react';
-import { trainersService } from '@/services/trainers.service';
+import { Loader2, Plus, X, Check } from 'lucide-react';
+import { 
+  trainersService, 
+  TrainerSpecialization, 
+  TrainerExperienceLevel,
+  TrainerAvailabilityStatus,
+  CreateTrainerDto 
+} from '@/services/trainers.service';
+import { usersService, User } from '@/services/users.service';
 import { useToast } from '@/components/ui/toast';
 import { useAuthStore } from '@/store/authStore';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface AddTrainerFormProps {
   onSuccess: () => void;
@@ -15,25 +23,40 @@ interface AddTrainerFormProps {
 }
 
 interface TrainerFormData {
-  userId: string;
   bio: string;
-  specializations: string[];
-  experienceLevel: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  experienceLevel: TrainerExperienceLevel;
   yearsOfExperience: number;
-  certifications: string[];
   offersDemoSession: boolean;
   demoSessionDurationMinutes?: number;
   hourlyRate?: number;
-  availabilityStatus: 'available' | 'busy' | 'on_leave' | 'inactive';
-  weeklyAvailability: Record<string, string[]>;
+  availabilityStatus: TrainerAvailabilityStatus;
 }
+
+// Human readable labels for specializations
+const SPECIALIZATION_LABELS: Record<TrainerSpecialization, string> = {
+  [TrainerSpecialization.STRENGTH_TRAINING]: 'Strength Training',
+  [TrainerSpecialization.CARDIO]: 'Cardio',
+  [TrainerSpecialization.YOGA]: 'Yoga',
+  [TrainerSpecialization.PILATES]: 'Pilates',
+  [TrainerSpecialization.CROSSFIT]: 'CrossFit',
+  [TrainerSpecialization.BODYBUILDING]: 'Bodybuilding',
+  [TrainerSpecialization.WEIGHT_LOSS]: 'Weight Loss',
+  [TrainerSpecialization.NUTRITION]: 'Nutrition',
+  [TrainerSpecialization.SPORTS_SPECIFIC]: 'Sports Specific',
+  [TrainerSpecialization.REHABILITATION]: 'Rehabilitation',
+  [TrainerSpecialization.FUNCTIONAL_TRAINING]: 'Functional Training',
+  [TrainerSpecialization.HIIT]: 'HIIT',
+  [TrainerSpecialization.MARTIAL_ARTS]: 'Martial Arts',
+  [TrainerSpecialization.DANCE_FITNESS]: 'Dance Fitness',
+  [TrainerSpecialization.SENIOR_FITNESS]: 'Senior Fitness',
+  [TrainerSpecialization.PRENATAL_POSTNATAL]: 'Prenatal/Postnatal',
+};
 
 export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormProps) {
   const { user } = useAuthStore();
   const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
-  const [specializations, setSpecializations] = useState<string[]>([]);
-  const [specializationInput, setSpecializationInput] = useState('');
+  const [specializations, setSpecializations] = useState<TrainerSpecialization[]>([]);
   const [certifications, setCertifications] = useState<string[]>([]);
   const [certificationInput, setCertificationInput] = useState('');
   const [weeklyAvailability, setWeeklyAvailability] = useState<Record<string, string[]>>({
@@ -45,6 +68,31 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
     saturday: [],
     sunday: [],
   });
+  
+  // User selection state
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+
+  // Fetch users on component mount
+  useEffect(() => {
+    if (user?.tenantId) {
+      fetchUsers();
+    }
+  }, [user?.tenantId]);
+
+  const fetchUsers = useCallback(async () => {
+    if (!user?.tenantId) return;
+    try {
+      setLoadingUsers(true);
+      const response = await usersService.getAll(user.tenantId, { limit: 100 });
+      setUsers(response.users || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [user?.tenantId]);
 
   const {
     register,
@@ -53,10 +101,10 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
     formState: { errors },
   } = useForm<TrainerFormData>({
     defaultValues: {
-      experienceLevel: 'intermediate',
+      experienceLevel: TrainerExperienceLevel.INTERMEDIATE,
       yearsOfExperience: 1,
       offersDemoSession: false,
-      availabilityStatus: 'available',
+      availabilityStatus: TrainerAvailabilityStatus.AVAILABLE,
     },
   });
 
@@ -83,15 +131,10 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
     '20:00-22:00',
   ];
 
-  const addSpecialization = () => {
-    if (specializationInput.trim() && !specializations.includes(specializationInput.trim())) {
-      setSpecializations([...specializations, specializationInput.trim()]);
-      setSpecializationInput('');
-    }
-  };
-
-  const removeSpecialization = (spec: string) => {
-    setSpecializations(specializations.filter((s) => s !== spec));
+  const toggleSpecialization = (spec: TrainerSpecialization) => {
+    setSpecializations((prev) =>
+      prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]
+    );
   };
 
   const addCertification = () => {
@@ -121,6 +164,11 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
       return;
     }
 
+    if (!selectedUserId) {
+      error('Validation Error', 'Please select a user');
+      return;
+    }
+
     if (specializations.length === 0) {
       error('Validation Error', 'Please add at least one specialization');
       return;
@@ -129,19 +177,18 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
     try {
       setLoading(true);
 
-      const trainerData = {
-        userId: data.userId,
+      const trainerData: CreateTrainerDto = {
+        userId: selectedUserId,
         bio: data.bio,
         specializations: specializations,
         experienceLevel: data.experienceLevel,
         yearsOfExperience: Number(data.yearsOfExperience),
-        certifications: certifications,
+        certifications: certifications.length > 0 ? certifications : undefined,
         offersDemoSession: data.offersDemoSession,
         demoSessionDurationMinutes: data.offersDemoSession
           ? Number(data.demoSessionDurationMinutes)
           : undefined,
         hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : undefined,
-        availabilityStatus: data.availabilityStatus,
         weeklyAvailability: weeklyAvailability,
       };
 
@@ -151,9 +198,9 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
       setTimeout(() => {
         window.location.reload();
       }, 1000);
-    } catch (error: any) {
-      console.error('Error creating trainer:', error);
-      error('Error', error.response?.data?.message || 'Failed to create trainer. Please try again.');
+    } catch (err: any) {
+      console.error('Error creating trainer:', err);
+      error('Error', err.response?.data?.message || 'Failed to create trainer. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -166,16 +213,23 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
         <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
 
         <div>
-          <Label htmlFor="userId">User ID *</Label>
-          <Input
-            id="userId"
-            {...register('userId', { required: 'User ID is required' })}
-            placeholder="Enter user ID"
+          <Label>Select User *</Label>
+          <SearchableSelect
+            options={users.map((u) => ({
+              value: u.id,
+              label: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email,
+              subtitle: u.email,
+            }))}
+            value={selectedUserId}
+            onChange={setSelectedUserId}
+            placeholder={loadingUsers ? 'Loading users...' : 'Search and select a user'}
+            disabled={loadingUsers}
           />
-          {errors.userId && <p className="text-sm text-red-600 mt-1">{errors.userId.message}</p>}
-          <p className="text-xs text-gray-500 mt-1">
-            The user must already exist in the system
-          </p>
+          {!selectedUserId && (
+            <p className="text-xs text-gray-500 mt-1">
+              Search by name or email to find an existing user
+            </p>
+          )}
         </div>
 
         <div>
@@ -238,43 +292,25 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
 
       {/* Specializations */}
       <div className="space-y-4 border-t pt-4">
-        <h3 className="text-lg font-semibold text-gray-900">Specializations</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Specializations *</h3>
+        <p className="text-sm text-gray-600">Select at least one specialization</p>
 
-        <div>
-          <Label>Add Specialization *</Label>
-          <div className="flex gap-2">
-            <Input
-              value={specializationInput}
-              onChange={(e) => setSpecializationInput(e.target.value)}
-              placeholder="e.g., HIIT, Yoga, Strength Training"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  addSpecialization();
-                }
-              }}
-            />
-            <Button type="button" onClick={addSpecialization} variant="outline">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {specializations.map((spec) => (
-              <div
-                key={spec}
-                className="flex items-center gap-1 bg-primary text-white px-3 py-1 rounded-full text-sm"
-              >
-                <span>{spec}</span>
-                <button
-                  type="button"
-                  onClick={() => removeSpecialization(spec)}
-                  className="hover:bg-white/20 rounded-full p-0.5"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.values(TrainerSpecialization).map((spec) => (
+            <button
+              key={spec}
+              type="button"
+              onClick={() => toggleSpecialization(spec)}
+              className={`flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                specializations.includes(spec)
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span>{SPECIALIZATION_LABELS[spec]}</span>
+              {specializations.includes(spec) && <Check className="h-4 w-4" />}
+            </button>
+          ))}
         </div>
       </div>
 

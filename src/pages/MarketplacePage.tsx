@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Package, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus, Package, ShoppingCart, ChevronLeft, ChevronRight, Search, Filter, X, Star } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
-import { marketplaceService, Product } from '@/services/marketplace.service';
+import { marketplaceService, Product, ProductFilters } from '@/services/marketplace.service';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Sheet,
   SheetContent,
@@ -87,6 +90,22 @@ function ProductImageCarousel({ product }: { product: Product }) {
   );
 }
 
+// Stock status options
+const STOCK_STATUS_OPTIONS = [
+  { value: 'in_stock', label: 'In Stock' },
+  { value: 'limited', label: 'Limited Stock' },
+  { value: 'out_of_stock', label: 'Out of Stock' },
+];
+
+// Sort options
+const SORT_OPTIONS = [
+  { value: 'createdAt', label: 'Date Created' },
+  { value: 'title', label: 'Title' },
+  { value: 'originalPrice', label: 'Price' },
+  { value: 'averageRating', label: 'Rating' },
+  { value: 'quantity', label: 'Stock Quantity' },
+];
+
 export default function MarketplacePage() {
   const { user } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
@@ -98,106 +117,113 @@ export default function MarketplacePage() {
   const [totalPages, setTotalPages] = useState(0);
   const limit = 10;
 
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [selectedStockStatus, setSelectedStockStatus] = useState('');
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [isFeatured, setIsFeatured] = useState<boolean | undefined>(undefined);
+  const [isVip, setIsVip] = useState<boolean | undefined>(undefined);
+  const [hasReturnPolicy, setHasReturnPolicy] = useState<boolean | undefined>(undefined);
+  const [minRating, setMinRating] = useState<number | undefined>(undefined);
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
+
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedCategory, selectedBrand, selectedStockStatus, minPrice, maxPrice, isFeatured, isVip, hasReturnPolicy, minRating, sortBy, sortOrder]);
+
   useEffect(() => {
     if (user?.tenantId) {
       fetchProducts();
     }
-  }, [user?.tenantId, currentPage]);
+  }, [user?.tenantId, currentPage, debouncedSearch, selectedCategory, selectedBrand, selectedStockStatus, minPrice, maxPrice, isFeatured, isVip, hasReturnPolicy, minRating, sortBy, sortOrder]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     if (!user?.tenantId) return;
 
     try {
       setLoading(true);
       setError(null);
-      const response = await marketplaceService.getProducts(user.tenantId, {
+
+      // Build filters object
+      const filters: ProductFilters = {
         page: currentPage,
         limit: limit,
-      });
+        sortBy,
+        sortOrder,
+      };
+
+      if (debouncedSearch) filters.search = debouncedSearch;
+      if (selectedCategory) filters.category = selectedCategory;
+      if (selectedBrand) filters.brand = selectedBrand;
+      if (selectedStockStatus) filters.stockStatus = selectedStockStatus;
+      if (minPrice) filters.minPrice = Number(minPrice);
+      if (maxPrice) filters.maxPrice = Number(maxPrice);
+      if (isFeatured !== undefined) filters.isFeatured = isFeatured;
+      if (isVip !== undefined) filters.isVip = isVip;
+      if (hasReturnPolicy !== undefined) filters.hasReturnPolicy = hasReturnPolicy;
+      if (minRating !== undefined) filters.minRating = minRating;
+
+      const response = await marketplaceService.getProducts(user.tenantId, filters);
       
-      // Handle both old format (data/meta) and new format (data/total)
       const data = response.data || [];
       
-      // Ensure data is an array
       if (Array.isArray(data)) {
         setProducts(data);
-        const total = response.total || 0; setTotalProducts(total);
+        const total = response.total || 0;
+        setTotalProducts(total);
         setTotalPages(Math.ceil(total / limit));
-        console.log('✅ Products loaded:', data.length, 'products');
       } else {
-        console.error('❌ Invalid products data:', data);
         setProducts([]);
         setError('Invalid data format received');
       }
     } catch (error: any) {
-      console.error('❌ Error fetching products:', error?.message || error);
-      setError('Failed to load products. Using sample data.');
+      console.error('Error fetching products:', error?.message || error);
+      setError('Failed to load products.');
       setProducts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.tenantId, currentPage, debouncedSearch, selectedCategory, selectedBrand, selectedStockStatus, minPrice, maxPrice, isFeatured, isVip, hasReturnPolicy, minRating, sortBy, sortOrder]);
 
   const handleAddProductSuccess = () => {
     setIsAddProductOpen(false);
     fetchProducts();
   };
 
-  // Mock data as fallback
-  const mockProducts: Product[] = [
-    {
-      id: '1',
-      title: 'Protein Powder - Vanilla',
-      description: 'Premium whey protein isolate for muscle recovery',
-      originalPrice: 2999,
-      discountedPrice: 1999,
-      currency: 'INR',
-      category: 'Supplements',
-      quantity: 45,
-      stockStatus: 'in_stock',
-      isVip: false,
-      isFeatured: true,
-      hasReturnPolicy: true,
-      returnPolicyDays: 30,
-      images: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      title: 'Yoga Mat - Premium',
-      description: 'Non-slip eco-friendly yoga mat with carrying strap',
-      originalPrice: 1499,
-      currency: 'INR',
-      category: 'Equipment',
-      quantity: 23,
-      stockStatus: 'limited',
-      isVip: false,
-      isFeatured: false,
-      hasReturnPolicy: true,
-      images: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '3',
-      title: 'Resistance Bands Set',
-      description: 'Set of 5 resistance bands for strength training',
-      originalPrice: 999,
-      currency: 'INR',
-      category: 'Equipment',
-      quantity: 67,
-      stockStatus: 'in_stock',
-      isVip: false,
-      isFeatured: false,
-      hasReturnPolicy: false,
-      images: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedCategory('');
+    setSelectedBrand('');
+    setSelectedStockStatus('');
+    setMinPrice('');
+    setMaxPrice('');
+    setIsFeatured(undefined);
+    setIsVip(undefined);
+    setHasReturnPolicy(undefined);
+    setMinRating(undefined);
+    setSortBy('createdAt');
+    setSortOrder('DESC');
+  };
 
-  const displayProducts = products.length > 0 ? products : (loading ? [] : mockProducts);
+  const hasActiveFilters = searchQuery || selectedCategory || selectedBrand || selectedStockStatus || minPrice || maxPrice || isFeatured !== undefined || isVip !== undefined || hasReturnPolicy !== undefined || minRating !== undefined;
+
 
   const getStockStatus = (quantity: number, stockStatus: string) => {
     if (stockStatus === 'out_of_stock' || quantity === 0) {
@@ -233,18 +259,207 @@ export default function MarketplacePage() {
         </Button>
       </div>
 
+      {/* Search and Filter Bar */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Toggle Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search products by title, description, brand..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              {/* Toggle Filters Button */}
+              <Button
+                variant={showFilters ? 'default' : 'outline'}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    !
+                  </Badge>
+                )}
+              </Button>
+
+              {/* Clear Filters */}
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearAllFilters} className="flex items-center gap-2">
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {/* Expandable Filters */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+                {/* Category Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Category</Label>
+                  <Input
+                    placeholder="e.g. Supplements"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                  />
+                </div>
+
+                {/* Brand Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Brand</Label>
+                  <Input
+                    placeholder="e.g. Nike"
+                    value={selectedBrand}
+                    onChange={(e) => setSelectedBrand(e.target.value)}
+                  />
+                </div>
+
+                {/* Stock Status Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Stock Status</Label>
+                  <select
+                    value={selectedStockStatus}
+                    onChange={(e) => setSelectedStockStatus(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Status</option>
+                    {STOCK_STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Min Rating Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Minimum Rating</Label>
+                  <select
+                    value={minRating ?? ''}
+                    onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">Any Rating</option>
+                    <option value="4">4+ Stars</option>
+                    <option value="3">3+ Stars</option>
+                    <option value="2">2+ Stars</option>
+                  </select>
+                </div>
+
+                {/* Price Range */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Min Price</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Max Price</Label>
+                  <Input
+                    type="number"
+                    placeholder="10000"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                  />
+                </div>
+
+                {/* Sort By */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Sort By</Label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    {SORT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sort Order */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Order</Label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as 'ASC' | 'DESC')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="DESC">Newest First</option>
+                    <option value="ASC">Oldest First</option>
+                  </select>
+                </div>
+
+                {/* Boolean Filters - Full Width */}
+                <div className="md:col-span-2 lg:col-span-4">
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Product Features</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsFeatured(isFeatured === true ? undefined : true)}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        isFeatured === true
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Star className="h-3 w-3" />
+                      Featured Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsVip(isVip === true ? undefined : true)}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        isVip === true
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      VIP Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHasReturnPolicy(hasReturnPolicy === true ? undefined : true)}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        hasReturnPolicy === true
+                          ? 'bg-primary text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      With Return Policy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-700">{displayProducts.length}</div>
+            <div className="text-2xl font-bold text-gray-700">{totalProducts}</div>
             <p className="text-sm text-gray-500">Total Products</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-emerald-600">
-              {displayProducts.filter(p => p.stockStatus === 'in_stock').length}
+              {products.filter((p: Product) => p.stockStatus === 'in_stock').length}
             </div>
             <p className="text-sm text-gray-500">In Stock</p>
           </CardContent>
@@ -252,7 +467,7 @@ export default function MarketplacePage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-indigo-600">
-              {displayProducts.filter(p => p.isFeatured).length}
+              {products.filter((p: Product) => p.isFeatured).length}
             </div>
             <p className="text-sm text-gray-500">Featured</p>
           </CardContent>
@@ -260,7 +475,7 @@ export default function MarketplacePage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-rose-600">
-              {displayProducts.filter(p => p.stockStatus === 'out_of_stock').length}
+              {products.filter((p: Product) => p.stockStatus === 'out_of_stock').length}
             </div>
             <p className="text-sm text-gray-500">Out of Stock</p>
           </CardContent>
@@ -285,23 +500,28 @@ export default function MarketplacePage() {
       )}
 
       {/* Empty State */}
-      {!loading && displayProducts.length === 0 && (
+      {!loading && products.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center">
-            <ShoppingCart className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600">No products found. Add your first product to get started!</p>
-            <Button className="mt-4" onClick={() => setIsAddProductOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={ShoppingCart}
+              title={hasActiveFilters ? "No products match your filters" : "No products yet"}
+              description={hasActiveFilters 
+                ? "Try adjusting your search or filters to find products."
+                : "Add your first product to start building your marketplace."
+              }
+              actionLabel={hasActiveFilters ? "Clear Filters" : "Add Product"}
+              onAction={hasActiveFilters ? clearAllFilters : () => setIsAddProductOpen(true)}
+              actionIcon={hasActiveFilters ? X : Plus}
+            />
           </CardContent>
         </Card>
       )}
 
       {/* Products Grid */}
-      {!loading && displayProducts.length > 0 && (
+      {!loading && products.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayProducts.map((product) => {
+          {products.map((product: Product) => {
             const stockStatus = getStockStatus(product.quantity, product.stockStatus);
           
           return (

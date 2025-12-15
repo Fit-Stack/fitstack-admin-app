@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Filter, Calendar, Users, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, Users, Loader2, ChevronLeft, ChevronRight, BookOpen, X } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/store/authStore';
 import { classesService, Class, ClassFilters } from '@/services/classes.service';
 import { format } from 'date-fns';
@@ -16,12 +18,42 @@ import {
 } from '@/components/ui/sheet';
 import AddClassForm from '@/components/forms/AddClassForm';
 
+// Class status options
+const STATUS_OPTIONS = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'published', label: 'Published' },
+  { value: 'ongoing', label: 'Ongoing' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+// Activity category options
+const CATEGORY_OPTIONS = [
+  { value: 'strength', label: 'Strength' },
+  { value: 'cardio', label: 'Cardio' },
+  { value: 'yoga', label: 'Yoga' },
+  { value: 'pilates', label: 'Pilates' },
+  { value: 'crossfit', label: 'CrossFit' },
+  { value: 'zumba', label: 'Zumba' },
+  { value: 'martial_arts', label: 'Martial Arts' },
+  { value: 'functional', label: 'Functional' },
+  { value: 'hiit', label: 'HIIT' },
+  { value: 'stretching', label: 'Stretching' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'other', label: 'Other' },
+];
+
+// Level options
+const LEVEL_OPTIONS = [
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+];
+
 export default function ClassesPage() {
   const { user } = useAuthStore();
-  const [searchQuery, setSearchQuery] = useState('');
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [publishingClassId, setPublishingClassId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -29,13 +61,36 @@ export default function ClassesPage() {
   const [totalPages, setTotalPages] = useState(0);
   const limit = 10;
 
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedLevel, setSelectedLevel] = useState<string>('');
+
+  const hasActiveFilters = searchQuery || selectedStatus || selectedCategory || selectedLevel;
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedStatus, selectedCategory, selectedLevel]);
+
   useEffect(() => {
     if (user?.tenantId) {
       fetchClasses();
     }
-  }, [user?.tenantId, selectedStatus, currentPage]);
+  }, [user?.tenantId, selectedStatus, selectedCategory, selectedLevel, currentPage]);
 
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     if (!user?.tenantId) return;
 
     try {
@@ -44,24 +99,32 @@ export default function ClassesPage() {
         page: currentPage,
         limit: limit,
       };
-      if (selectedStatus !== 'all') {
-        filters.status = selectedStatus;
-      }
+      if (selectedStatus) filters.status = selectedStatus;
+      if (selectedCategory) filters.category = selectedCategory;
+      if (selectedLevel) filters.level = selectedLevel;
+
       const response = await classesService.getAll(user.tenantId, filters);
-      setClasses(response.classes);
-      setTotalClasses(response.total);
-      setTotalPages(response.totalPages);
+      setClasses(response.classes || []);
+      setTotalClasses(response.total || 0);
+      setTotalPages(response.totalPages || 0);
     } catch (error) {
       console.error('Error fetching classes:', error);
-      setClasses([]); // Set empty array to prevent undefined error
+      setClasses([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.tenantId, currentPage, selectedStatus, selectedCategory, selectedLevel]);
 
   const handleAddClassSuccess = () => {
     setIsAddClassOpen(false);
-    fetchClasses(); // Refresh the list
+    fetchClasses();
+  };
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setSelectedStatus('');
+    setSelectedCategory('');
+    setSelectedLevel('');
   };
 
   const handlePublishClass = async (classId: string) => {
@@ -71,7 +134,7 @@ export default function ClassesPage() {
       setPublishingClassId(classId);
       await classesService.publish(user.tenantId, classId);
       alert('Class published successfully!');
-      fetchClasses(); // Refresh the list
+      fetchClasses();
     } catch (error: any) {
       console.error('Error publishing class:', error);
       alert(error.response?.data?.message || 'Failed to publish class.');
@@ -80,81 +143,13 @@ export default function ClassesPage() {
     }
   };
 
-  const filteredClasses = (classes || []).filter((classItem) =>
-    classItem.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    classItem.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Mock data as fallback - matches Class interface
-  const mockClasses: Class[] = [
-    {
-      id: '1',
-      title: 'HIIT Training',
-      description: 'High-intensity interval training for maximum results',
-      instructorId: 'mock-instructor-1',
-      startDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      schedule: {
-        days: ['monday', 'wednesday', 'friday'],
-        timeSlots: [{ startTime: '09:00', endTime: '09:45' }],
-      },
-      capacity: 20,
-      enrolled: 15,
-      pricingType: 'course_fee',
-      price: 5000,
-      currency: 'INR',
-      category: 'cardio',
-      level: 'advanced',
-      status: 'published',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      title: 'Yoga Flow',
-      description: 'Gentle yoga flow for flexibility and relaxation',
-      instructorId: 'mock-instructor-2',
-      startDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-      schedule: {
-        days: ['tuesday', 'thursday'],
-        timeSlots: [{ startTime: '07:00', endTime: '08:00' }],
-      },
-      capacity: 15,
-      enrolled: 12,
-      pricingType: 'membership',
-      currency: 'INR',
-      category: 'yoga',
-      level: 'beginner',
-      status: 'published',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '3',
-      title: 'Spin Class',
-      description: 'Indoor cycling for cardio endurance',
-      instructorId: 'mock-instructor-3',
-      startDate: new Date().toISOString(),
-      endDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
-      schedule: {
-        days: ['monday', 'wednesday', 'friday'],
-        timeSlots: [{ startTime: '18:00', endTime: '18:50' }],
-      },
-      capacity: 25,
-      enrolled: 20,
-      pricingType: 'subscription',
-      price: 3000,
-      currency: 'INR',
-      category: 'cardio',
-      level: 'intermediate',
-      status: 'published',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  const displayClasses = filteredClasses.length > 0 ? filteredClasses : (loading ? [] : mockClasses);
+  // Client-side search filtering
+  const filteredClasses = debouncedSearch
+    ? (classes || []).filter((classItem) =>
+        classItem.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        classItem.category.toLowerCase().includes(debouncedSearch.toLowerCase())
+      )
+    : classes;
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, any> = {
@@ -224,34 +219,95 @@ export default function ClassesPage() {
 
       {/* Search and Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search classes..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm"
+        <CardContent className="py-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Toggle Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search classes by title or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              {/* Toggle Filters Button */}
+              <Button
+                variant={showFilters ? 'default' : 'outline'}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
               >
-                <option value="all">All Status</option>
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
-                <option value="ongoing">Ongoing</option>
-                <option value="completed">Completed</option>
-              </select>
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                More Filters
+                <Filter className="h-4 w-4" />
+                Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    !
+                  </Badge>
+                )}
               </Button>
+
+              {/* Clear Filters */}
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearAllFilters} className="flex items-center gap-2">
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              )}
             </div>
+
+            {/* Expandable Filters */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                {/* Status Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Status</Label>
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Status</option>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Category Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Category</Label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Categories</option>
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Level Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Level</Label>
+                  <select
+                    value={selectedLevel}
+                    onChange={(e) => setSelectedLevel(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Levels</option>
+                    {LEVEL_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -265,22 +321,28 @@ export default function ClassesPage() {
       )}
 
       {/* Empty State */}
-      {!loading && displayClasses.length === 0 && (
+      {!loading && filteredClasses.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-gray-600">No classes found. Create your first class to get started!</p>
-            <Button className="mt-4">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Class
-            </Button>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={BookOpen}
+              title={hasActiveFilters ? "No classes match your search" : "No classes yet"}
+              description={hasActiveFilters 
+                ? "Try adjusting your search or filters to find classes."
+                : "Create your first class to start offering fitness programs."
+              }
+              actionLabel={hasActiveFilters ? "Clear Filters" : "Add Class"}
+              onAction={hasActiveFilters ? clearAllFilters : () => setIsAddClassOpen(true)}
+              actionIcon={hasActiveFilters ? X : Plus}
+            />
           </CardContent>
         </Card>
       )}
 
       {/* Classes Grid */}
-      {!loading && displayClasses.length > 0 && (
+      {!loading && filteredClasses.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayClasses.map((classItem) => (
+          {filteredClasses.map((classItem) => (
             <Card key={classItem.id} className="hover:shadow-lg transition-shadow">
               {classItem.imageUrl && (
                 <div className="h-48 overflow-hidden">

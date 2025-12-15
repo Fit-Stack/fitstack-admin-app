@@ -150,9 +150,9 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
       const newClass = await classesService.create(user.tenantId, classData);
       setCreatedClass(newClass);
       success('Success', 'Class created successfully! Would you like to publish it now?');
-    } catch (error: any) {
-      console.error('Error creating class:', error);
-      error('Error', error.response?.data?.message || 'Failed to create class. Please try again.');
+    } catch (err: any) {
+      console.error('Error creating class:', err);
+      error('Error', err.response?.data?.message || 'Failed to create class. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -447,9 +447,9 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
                   setTimeout(() => {
                     window.location.reload();
                   }, 1000);
-                } catch (error: any) {
-                  console.error('Error publishing class:', error);
-                  error('Error', error.response?.data?.message || 'Failed to publish class.');
+                } catch (err: any) {
+                  console.error('Error publishing class:', err);
+                  error('Error', err.response?.data?.message || 'Failed to publish class.');
                 } finally {
                   setPublishLoading(false);
                 }

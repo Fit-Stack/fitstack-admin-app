@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useAuthStore } from '@/store/authStore';
 import { analyticsService } from '@/services/analytics.service';
 import {
@@ -14,6 +15,7 @@ import {
   Award,
   ArrowUp,
   ArrowDown,
+  UserCheck,
 } from 'lucide-react';
 import {
   LineChart,
@@ -55,22 +57,13 @@ export default function DashboardPage() {
         analyticsService.getTrainerPerformance(user.tenantId),
       ]);
       setDashboardStats(stats);
-      setTrainerPerformanceData(trainers.length > 0 ? trainers : mockTrainerData);
+      setTrainerPerformanceData(trainers || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
   };
-
-  // Mock trainer data as fallback
-  const mockTrainerData = [
-    { name: 'John Smith', sessions: 45, rating: 4.8, revenue: 12500 },
-    { name: 'Sarah Johnson', sessions: 52, rating: 4.9, revenue: 14200 },
-    { name: 'Mike Davis', sessions: 38, rating: 4.7, revenue: 10800 },
-    { name: 'Emma Wilson', sessions: 41, rating: 4.6, revenue: 11200 },
-    { name: 'David Brown', sessions: 35, rating: 4.5, revenue: 9800 },
-  ];
 
   // Revenue data for the last 30 days
   const revenueData = analyticsService.getRevenueData();
@@ -416,53 +409,62 @@ export default function DashboardPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {trainerPerformanceData.map((trainer, index) => (
-              <div
-                key={trainer.name}
-                className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white font-bold">
-                    #{index + 1}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">{trainer.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {trainer.sessions} sessions completed
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Rating</p>
-                    <div className="flex items-center gap-1">
-                      <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                        {trainer.rating}
-                      </span>
-                      <span className="text-yellow-500">★</span>
+          {trainerPerformanceData.length === 0 ? (
+            <EmptyState
+              icon={UserCheck}
+              title="No trainer data available"
+              description="Trainer performance metrics will appear here once trainers start conducting sessions."
+              variant="compact"
+            />
+          ) : (
+            <div className="space-y-4">
+              {trainerPerformanceData.map((trainer, index) => (
+                <div
+                  key={trainer.name}
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white font-bold">
+                      #{index + 1}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-gray-100">{trainer.name}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {trainer.sessions} sessions completed
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Revenue</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                      ${trainer.revenue.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="w-32">
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary"
-                        style={{
-                          width: `${(trainer.sessions / 52) * 100}%`,
-                        }}
-                      />
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Rating</p>
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                          {trainer.rating}
+                        </span>
+                        <span className="text-yellow-500">★</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Revenue</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                        ${trainer.revenue.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="w-32">
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary"
+                          style={{
+                            width: `${(trainer.sessions / 52) * 100}%`,
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

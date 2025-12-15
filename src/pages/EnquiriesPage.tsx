@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   MessageSquare,
   Mail,
@@ -17,6 +18,9 @@ import {
   XCircle,
   ChevronLeft,
   ChevronRight,
+  Search,
+  Filter,
+  X,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
@@ -29,6 +33,21 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 
+// Sort options for enquiries
+const SORT_OPTIONS = [
+  { value: 'createdAt', label: 'Date Created' },
+  { value: 'status', label: 'Status' },
+  { value: 'customerName', label: 'Customer Name' },
+];
+
+// Status options
+const STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending', color: 'text-amber-600' },
+  { value: 'contacted', label: 'Contacted', color: 'text-blue-600' },
+  { value: 'converted', label: 'Converted', color: 'text-green-600' },
+  { value: 'closed', label: 'Closed', color: 'text-gray-600' },
+];
+
 export default function EnquiriesPage() {
   const { user } = useAuthStore();
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
@@ -37,21 +56,42 @@ export default function EnquiriesPage() {
   const [statistics, setStatistics] = useState<any>(null);
   const [selectedEnquiry, setSelectedEnquiry] = useState<Enquiry | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEnquiries, setTotalEnquiries] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const limit = 10;
+
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
+
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchEnquiries();
       fetchStatistics();
     }
-  }, [user?.tenantId, statusFilter, currentPage]);
+  }, [user?.tenantId, statusFilter, currentPage, debouncedSearch, sortBy, sortOrder]);
 
-  const fetchEnquiries = async () => {
+  const fetchEnquiries = useCallback(async () => {
     if (!user?.tenantId) return;
 
     try {
@@ -60,30 +100,38 @@ export default function EnquiriesPage() {
       const filters: any = {
         page: currentPage,
         limit: limit,
-        sortBy: 'createdAt',
-        sortOrder: 'ASC',
+        sortBy,
+        sortOrder,
       };
 
       if (statusFilter !== 'all') {
         filters.status = statusFilter;
       }
 
-      if (searchQuery) {
-        filters.search = searchQuery;
+      if (debouncedSearch) {
+        filters.search = debouncedSearch;
       }
 
       const response = await marketplaceService.getEnquiries(user.tenantId, filters);
       setEnquiries(response.data || []);
       setTotalEnquiries(response.meta.total);
       setTotalPages(Math.ceil(response.meta.total / limit));
-      console.log('✅ Enquiries loaded:', response.data.length, 'enquiries');
     } catch (error) {
       console.error('Error fetching enquiries:', error);
       setError('Failed to load enquiries.');
     } finally {
       setLoading(false);
     }
+  }, [user?.tenantId, currentPage, debouncedSearch, statusFilter, sortBy, sortOrder]);
+
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setSortBy('createdAt');
+    setSortOrder('DESC');
   };
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all';
 
   const fetchStatistics = async () => {
     if (!user?.tenantId) return;
@@ -160,18 +208,6 @@ export default function EnquiriesPage() {
     }
   };
 
-  const filteredEnquiries = enquiries.filter((enquiry) => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const userName = `${enquiry.user?.firstName || ''} ${enquiry.user?.lastName || ''}`.toLowerCase();
-      const email = enquiry.user?.email?.toLowerCase() || '';
-      const productTitle = enquiry.product?.title?.toLowerCase() || '';
-      
-      return userName.includes(query) || email.includes(query) || productTitle.includes(query);
-    }
-    return true;
-  });
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -240,34 +276,115 @@ export default function EnquiriesPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Search and Filter Bar */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="search">Search</Label>
-              <Input
-                id="search"
-                placeholder="Search by customer name, email, or product..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="status">Status Filter</Label>
-              <select
-                id="status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+        <CardContent className="py-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Toggle Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search by customer name or email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              {/* Toggle Filters Button */}
+              <Button
+                variant={showFilters ? 'default' : 'outline'}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
               >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="contacted">Contacted</option>
-                <option value="converted">Converted</option>
-                <option value="closed">Closed</option>
-              </select>
+                <Filter className="h-4 w-4" />
+                Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    !
+                  </Badge>
+                )}
+              </Button>
+
+              {/* Clear Filters */}
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearAllFilters} className="flex items-center gap-2">
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              )}
             </div>
+
+            {/* Expandable Filters */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+                {/* Status Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Status</Label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="all">All Status</option>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sort By */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Sort By</Label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    {SORT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sort Order */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Order</Label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as 'ASC' | 'DESC')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="DESC">Newest First</option>
+                    <option value="ASC">Oldest First</option>
+                  </select>
+                </div>
+
+                {/* Quick Status Buttons */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Quick Filter</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {STATUS_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setStatusFilter(statusFilter === opt.value ? 'all' : opt.value)}
+                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                          statusFilter === opt.value
+                            ? 'bg-primary text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -290,23 +407,28 @@ export default function EnquiriesPage() {
       )}
 
       {/* Empty State */}
-      {!loading && filteredEnquiries.length === 0 && (
+      {!loading && enquiries.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center">
-            <MessageSquare className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600">
-              {searchQuery || statusFilter !== 'all'
-                ? 'No enquiries found matching your filters.'
-                : 'No enquiries yet. Enquiries will appear here when customers show interest in products.'}
-            </p>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={MessageSquare}
+              title={hasActiveFilters ? "No enquiries match your filters" : "No enquiries yet"}
+              description={hasActiveFilters 
+                ? "Try adjusting your search or filters to find enquiries."
+                : "Enquiries will appear here when customers show interest in your products."
+              }
+              actionLabel={hasActiveFilters ? "Clear Filters" : undefined}
+              onAction={hasActiveFilters ? clearAllFilters : undefined}
+              actionIcon={hasActiveFilters ? X : undefined}
+            />
           </CardContent>
         </Card>
       )}
 
       {/* Enquiries List */}
-      {!loading && filteredEnquiries.length > 0 && (
+      {!loading && enquiries.length > 0 && (
         <div className="space-y-4">
-          {filteredEnquiries.map((enquiry) => (
+          {enquiries.map((enquiry) => (
             <Card
               key={enquiry.id}
               className="hover:shadow-md transition-shadow cursor-pointer"

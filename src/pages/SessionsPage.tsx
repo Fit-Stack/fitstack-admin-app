@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, Clock, Users, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus, Calendar, Clock, Users, Repeat, ChevronLeft, ChevronRight, CalendarDays, Filter, X, Search } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
-import { sessionsService, Session } from '@/services/sessions.service';
+import { sessionsService, Session, SessionFilters } from '@/services/sessions.service';
 import {
   Sheet,
   SheetContent,
@@ -14,6 +17,29 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import AddSessionForm from '@/components/forms/AddSessionForm';
+
+// Session status options
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+// Activity category options
+const CATEGORY_OPTIONS = [
+  { value: 'strength', label: 'Strength' },
+  { value: 'cardio', label: 'Cardio' },
+  { value: 'yoga', label: 'Yoga' },
+  { value: 'pilates', label: 'Pilates' },
+  { value: 'crossfit', label: 'CrossFit' },
+  { value: 'zumba', label: 'Zumba' },
+  { value: 'martial_arts', label: 'Martial Arts' },
+  { value: 'functional', label: 'Functional' },
+  { value: 'hiit', label: 'HIIT' },
+  { value: 'stretching', label: 'Stretching' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function SessionsPage() {
   const { user } = useAuthStore();
@@ -25,107 +51,71 @@ export default function SessionsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const limit = 10;
 
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+
+  const hasActiveFilters = searchQuery || statusFilter || categoryFilter;
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, categoryFilter]);
+
   useEffect(() => {
     if (user?.tenantId) {
       fetchSessions();
     }
-  }, [user?.tenantId, currentPage]);
+  }, [user?.tenantId, currentPage, debouncedSearch, statusFilter, categoryFilter]);
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     if (!user?.tenantId) return;
 
     try {
       setLoading(true);
-      const response = await sessionsService.getAll(user.tenantId, {
+      
+      const filters: SessionFilters = {
         page: currentPage,
-        limit: limit
-      });
-      setSessions(response.sessions);
-      setTotalSessions(response.total);
-      setTotalPages(response.totalPages);
+        limit: limit,
+      };
+
+      if (debouncedSearch) filters.search = debouncedSearch;
+      if (statusFilter) filters.status = statusFilter;
+      if (categoryFilter) filters.category = categoryFilter;
+
+      const response = await sessionsService.getAll(user.tenantId, filters);
+      setSessions(response.sessions || []);
+      setTotalSessions(response.total || 0);
+      setTotalPages(response.totalPages || 0);
     } catch (error) {
       console.error('Error fetching sessions:', error);
-      setSessions([]); // Set empty array to prevent undefined error
+      setSessions([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.tenantId, currentPage, debouncedSearch, statusFilter, categoryFilter]);
 
   const handleAddSessionSuccess = () => {
     setIsAddSessionOpen(false);
     fetchSessions();
   };
 
-  // Mock data as fallback - matches Session interface
-  const mockSessions: Session[] = [
-    {
-      id: '1',
-      tenantId: user?.tenantId || '',
-      title: 'HIIT Training Session',
-      description: 'High-intensity interval training',
-      instructorId: 'instructor-1',
-      category: 'cardio',
-      recurrencePattern: {
-        type: 'weekly',
-        days: ['monday', 'wednesday', 'friday'],
-        time: '09:00',
-        durationMinutes: 45,
-        startDate: new Date(2025, 11, 13).toISOString(),
-        endDate: new Date(2026, 11, 13).toISOString(),
-      },
-      capacity: 20,
-      isPaid: false,
-      currency: 'INR',
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '2',
-      tenantId: user?.tenantId || '',
-      title: 'Yoga Flow Session',
-      description: 'Gentle yoga flow for flexibility',
-      instructorId: 'instructor-2',
-      category: 'yoga',
-      recurrencePattern: {
-        type: 'weekly',
-        days: ['tuesday', 'thursday'],
-        time: '10:00',
-        durationMinutes: 60,
-        startDate: new Date(2025, 11, 13).toISOString(),
-        endDate: new Date(2026, 11, 13).toISOString(),
-      },
-      capacity: 15,
-      isPaid: false,
-      currency: 'INR',
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: '3',
-      tenantId: user?.tenantId || '',
-      title: 'Spin Class Session',
-      description: 'Indoor cycling for cardio',
-      instructorId: 'instructor-3',
-      category: 'cardio',
-      recurrencePattern: {
-        type: 'daily',
-        time: '17:00',
-        durationMinutes: 45,
-        startDate: new Date(2025, 11, 13).toISOString(),
-        endDate: new Date(2026, 11, 13).toISOString(),
-      },
-      isPaid: false,
-      currency: 'INR',
-      capacity: 25,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  const displaySessions = (sessions || []).length > 0 ? sessions : (loading ? [] : mockSessions);
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('');
+    setCategoryFilter('');
+  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, any> = {
@@ -157,6 +147,105 @@ export default function SessionsPage() {
           Schedule Session
         </Button>
       </div>
+
+      {/* Filter Bar */}
+      <Card>
+        <CardContent className="py-4">
+          <div className="flex flex-col gap-4">
+            {/* Search and Filter Toggle */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search sessions by title or description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              <Button
+                variant={showFilters ? 'default' : 'outline'}
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center gap-2"
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    !
+                  </Badge>
+                )}
+              </Button>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" onClick={clearAllFilters} className="flex items-center gap-2">
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              )}
+            </div>
+
+            {/* Expandable Filters */}
+            {showFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+                {/* Status Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Status</Label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Status</option>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Category Filter */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Category</Label>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  >
+                    <option value="">All Categories</option>
+                    {CATEGORY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Quick Status Buttons */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700 mb-2 block">Quick Filter</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {STATUS_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setStatusFilter(statusFilter === opt.value ? '' : opt.value)}
+                        className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                          statusFilter === opt.value
+                            ? 'bg-primary text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -201,22 +290,28 @@ export default function SessionsPage() {
       )}
 
       {/* Empty State */}
-      {!loading && displaySessions.length === 0 && (
+      {!loading && sessions.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-gray-600">No sessions found. Schedule your first session to get started!</p>
-            <Button className="mt-4" onClick={() => setIsAddSessionOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Schedule Session
-            </Button>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={CalendarDays}
+              title={hasActiveFilters ? "No sessions match your filters" : "No sessions yet"}
+              description={hasActiveFilters 
+                ? "Try adjusting your filters to find sessions."
+                : "Schedule your first session to start managing your fitness activities."
+              }
+              actionLabel={hasActiveFilters ? "Clear Filters" : "Schedule Session"}
+              onAction={hasActiveFilters ? clearAllFilters : () => setIsAddSessionOpen(true)}
+              actionIcon={hasActiveFilters ? X : Plus}
+            />
           </CardContent>
         </Card>
       )}
 
       {/* Sessions List */}
-      {!loading && displaySessions.length > 0 && (
+      {!loading && sessions.length > 0 && (
         <div className="space-y-4">
-          {displaySessions.map((session) => {
+          {sessions.map((session) => {
             const instructor = session.instructor;
             // Mock enrollment for display (since Session interface doesn't have currentEnrollment)
             const capacity = session.capacity || 0;

@@ -1,13 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { usersService, User, UserFilters } from '@/services/users.service';
 import { useAuthStore } from '@/store/authStore';
 import { useToast } from '@/components/ui/toast';
-import { Search, User as UserIcon, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Search, User as UserIcon, ChevronLeft, ChevronRight, Filter, Users, Plus } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
+import AddUserForm from '@/components/forms/AddUserForm';
 
 export default function UsersPage() {
   const { user } = useAuthStore();
@@ -18,6 +27,7 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [totalUsers, setTotalUsers] = useState(0);
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [filters, setFilters] = useState<UserFilters>({
@@ -44,7 +54,7 @@ export default function UsersPage() {
       });
       setUsers(response.users);
       setTotalUsers(response.total);
-      setTotalPages(response.totalPages);
+      setTotalPages(response.totalPages || 1);
     } catch (err: any) {
       console.error('Error fetching users:', err);
       error('Error', 'Failed to fetch users');
@@ -139,8 +149,14 @@ export default function UsersPage() {
             Manage and view all users in your system
           </p>
         </div>
-        <div className="text-sm text-gray-500">
-          Total: {totalUsers} users
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-500">
+            Total: {totalUsers} users
+          </div>
+          <Button onClick={() => setIsAddUserOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
         </div>
       </div>
 
@@ -346,15 +362,20 @@ export default function UsersPage() {
 
       {/* Empty State */}
       {users.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <UserIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-            No users found
-          </h3>
-          <p className="text-gray-500">
-            Try adjusting your filters or search terms
-          </p>
-        </div>
+        <Card>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={Users}
+              title={searchTerm || filters.role || filters.isActive !== undefined ? "No users match your filters" : "No users yet"}
+              description={searchTerm || filters.role || filters.isActive !== undefined
+                ? "Try adjusting your search or filters to find users."
+                : "Users will appear here once they register."
+              }
+              actionLabel={searchTerm || filters.role || filters.isActive !== undefined ? "Clear Filters" : undefined}
+              onAction={searchTerm || filters.role || filters.isActive !== undefined ? clearFilters : undefined}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {/* Pagination */}
@@ -466,6 +487,27 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {/* Add User Sheet */}
+      <Sheet open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Add New User</SheetTitle>
+            <SheetDescription>
+              Create a new user account for your organization
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6">
+            <AddUserForm
+              onSuccess={() => {
+                setIsAddUserOpen(false);
+                fetchUsers();
+              }}
+              onCancel={() => setIsAddUserOpen(false)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

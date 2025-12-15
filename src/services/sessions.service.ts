@@ -45,7 +45,9 @@ export interface Session {
 }
 
 export interface SessionFilters {
+  search?: string;
   status?: string;
+  category?: string;
   instructorId?: string;
   page?: number;
   limit?: number;

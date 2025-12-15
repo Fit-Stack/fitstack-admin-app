@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
+import { ToastProvider } from './contexts/ToastContext';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
@@ -11,7 +12,6 @@ import MarketplacePage from './pages/MarketplacePage';
 import EnquiriesPage from './pages/EnquiriesPage';
 import EventsPage from './pages/EventsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
-import { ToastContainer } from './components/ui/toast';
 import UsersPage from './pages/UsersPage';
 
 function App() {
@@ -33,9 +33,9 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <ToastContainer />
-      <Routes>
+    <ToastProvider>
+      <BrowserRouter>
+        <Routes>
         <Route
           path="/login"
           element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
@@ -59,8 +59,9 @@ function App() {
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </ToastProvider>
   );
 }
 

@@ -15,8 +15,10 @@ import {
   Trash2,
   AlertTriangle,
   Calendar,
-  Users
+  Users,
+  X
 } from 'lucide-react';
+import { EmptyState } from '@/components/ui/empty-state';
 import { format } from 'date-fns';
 import { useAuthStore } from '@/store/authStore';
 import { announcementsService, Announcement } from '@/services/announcements.service';
@@ -463,17 +465,18 @@ export default function AnnouncementsPage() {
       {/* Empty State */}
       {!loading && filteredAnnouncements.length === 0 && (
         <Card>
-          <CardContent className="py-12 text-center">
-            <Megaphone className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600">
-              {searchQuery || statusFilter !== 'all'
-                ? 'No announcements found matching your filters.'
-                : 'No announcements yet. Create your first announcement to get started!'}
-            </p>
-            <Button className="mt-4" onClick={() => setIsAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Announcement
-            </Button>
+          <CardContent className="py-6">
+            <EmptyState
+              icon={Megaphone}
+              title={searchQuery || statusFilter !== 'all' ? "No announcements match your filters" : "No announcements yet"}
+              description={searchQuery || statusFilter !== 'all'
+                ? "Try adjusting your search or filters to find announcements."
+                : "Create your first announcement to communicate with your members."
+              }
+              actionLabel={searchQuery || statusFilter !== 'all' ? "Clear Filters" : "Create Announcement"}
+              onAction={searchQuery || statusFilter !== 'all' ? () => { setSearchQuery(''); setStatusFilter('all'); } : () => setIsAddOpen(true)}
+              actionIcon={searchQuery || statusFilter !== 'all' ? X : Plus}
+            />
           </CardContent>
         </Card>
       )}

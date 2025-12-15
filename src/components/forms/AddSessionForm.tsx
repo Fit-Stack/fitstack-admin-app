@@ -138,9 +138,9 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
       setTimeout(() => {
         window.location.reload();
       }, 1000);
-    } catch (error: any) {
-      console.error('Error creating session:', error);
-      error('Error', error.response?.data?.message || 'Failed to create session. Please try again.');
+    } catch (err: any) {
+      console.error('Error creating session:', err);
+      error('Error', err.response?.data?.message || 'Failed to create session. Please try again.');
     } finally {
       setLoading(false);
     }
