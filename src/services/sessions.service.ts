@@ -76,9 +76,36 @@ export const sessionsService = {
     return data;
   },
 
-  async create(tenantId: string, sessionData: Partial<Session>): Promise<Session> {
-    const { data } = await apiClient.post(`/tenants/${tenantId}/sessions`, sessionData);
-    return data;
+  async create(tenantId: string, sessionData: Partial<Session>, bannerFile?: File | null): Promise<Session> {
+    if (bannerFile) {
+      // Send as multipart/form-data with file
+      const formData = new FormData();
+      
+      // Add all session data fields to formData
+      Object.entries(sessionData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'object') {
+            formData.append(key, JSON.stringify(value));
+          } else {
+            formData.append(key, String(value));
+          }
+        }
+      });
+      
+      // Add banner file
+      formData.append('banner', bannerFile);
+      
+      const { data } = await apiClient.post(`/tenants/${tenantId}/sessions`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return data;
+    } else {
+      // Send as JSON
+      const { data } = await apiClient.post(`/tenants/${tenantId}/sessions`, sessionData);
+      return data;
+    }
   },
 
   async update(tenantId: string, sessionId: string, sessionData: Partial<Session>): Promise<Session> {

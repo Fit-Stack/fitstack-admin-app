@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Loader2, Plus, X, Upload, Image as ImageIcon } from 'lucide-react';
 import { classesService } from '@/services/classes.service';
 import { trainersService, Trainer } from '@/services/trainers.service';
 import { useToast } from '@/components/ui/toast';
@@ -44,6 +44,8 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
   const [selectedTrainer, setSelectedTrainer] = useState<string>('');
   const [createdClass, setCreatedClass] = useState<any>(null);
   const [publishLoading, setPublishLoading] = useState(false);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
 
   const {
     register,
@@ -78,6 +80,34 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
     } finally {
       setLoadingTrainers(false);
     }
+  };
+
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        error('Invalid File', 'Please select an image file');
+        return;
+      }
+      // Validate file size (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        error('File Too Large', 'Banner image must be less than 5MB');
+        return;
+      }
+      setBannerFile(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBannerPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeBanner = () => {
+    setBannerFile(null);
+    setBannerPreview(null);
   };
 
   const daysOfWeek = [
@@ -147,7 +177,7 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
         level: data.level,
       };
 
-      const newClass = await classesService.create(user.tenantId, classData);
+      const newClass = await classesService.create(user.tenantId, classData, bannerFile);
       setCreatedClass(newClass);
       success('Success', 'Class created successfully! Would you like to publish it now?');
     } catch (err: any) {
@@ -241,6 +271,53 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
           {!selectedTrainer && (
             <p className="text-sm text-red-600 mt-1">Instructor is required</p>
           )}
+        </div>
+
+        {/* Banner Upload */}
+        <div>
+          <Label htmlFor="banner">Class Banner (Optional)</Label>
+          <div className="mt-2">
+            {!bannerPreview ? (
+              <label
+                htmlFor="banner"
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                  <p className="text-sm text-gray-500">
+                    <span className="font-semibold">Click to upload</span> or drag and drop
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">PNG, JPG, WEBP up to 5MB</p>
+                </div>
+                <input
+                  id="banner"
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleBannerChange}
+                />
+              </label>
+            ) : (
+              <div className="relative">
+                <img
+                  src={bannerPreview}
+                  alt="Banner preview"
+                  className="w-full h-48 object-cover rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={removeBanner}
+                  className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
+                  <ImageIcon className="h-3 w-3" />
+                  {bannerFile?.name}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

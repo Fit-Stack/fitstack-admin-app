@@ -65,9 +65,36 @@ export const classesService = {
     return data;
   },
 
-  async create(tenantId: string, classData: Partial<Class>): Promise<Class> {
-    const { data } = await apiClient.post(`/tenants/${tenantId}/classes`, classData);
-    return data;
+  async create(tenantId: string, classData: Partial<Class>, bannerFile?: File | null): Promise<Class> {
+    if (bannerFile) {
+      // Send as multipart/form-data with file
+      const formData = new FormData();
+      
+      // Add all class data fields to formData
+      Object.entries(classData).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (typeof value === 'object') {
+            formData.append(key, JSON.stringify(value));
+          } else {
+            formData.append(key, String(value));
+          }
+        }
+      });
+      
+      // Add banner file
+      formData.append('banner', bannerFile);
+      
+      const { data } = await apiClient.post(`/tenants/${tenantId}/classes`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return data;
+    } else {
+      // Send as JSON
+      const { data } = await apiClient.post(`/tenants/${tenantId}/classes`, classData);
+      return data;
+    }
   },
 
   async update(tenantId: string, classId: string, classData: Partial<Class>): Promise<Class> {
