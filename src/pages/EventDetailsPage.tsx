@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ArrowLeft, Calendar, MapPin, Users, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Users, Edit2, Trash2, CheckCircle } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
