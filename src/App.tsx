@@ -7,10 +7,16 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
 import ClassesPage from './pages/ClassesPage';
 import SessionsPage from './pages/SessionsPage';
+import SessionDetailsPage from './pages/SessionDetailsPage';
+import ClassDetailsPage from './pages/ClassDetailsPage';
+import UserDetailsPage from './pages/UserDetailsPage';
 import TrainersPage from './pages/TrainersPage';
+import TrainerDetailsPage from './pages/TrainerDetailsPage';
 import MarketplacePage from './pages/MarketplacePage';
+import MarketplaceProductDetailsPage from './pages/MarketplaceProductDetailsPage';
 import EnquiriesPage from './pages/EnquiriesPage';
 import EventsPage from './pages/EventsPage';
+import EventDetailsPage from './pages/EventDetailsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import UsersPage from './pages/UsersPage';
 
@@ -49,12 +55,18 @@ function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="classes" element={<ClassesPage />} />
+          <Route path="classes/:id" element={<ClassDetailsPage />} />
           <Route path="sessions" element={<SessionsPage />} />
+          <Route path="sessions/:id" element={<SessionDetailsPage />} />
           <Route path="trainers" element={<TrainersPage />} />
+          <Route path="trainers/:id" element={<TrainerDetailsPage />} />
           <Route path="users" element={<UsersPage   />} />
+          <Route path="users/:id" element={<UserDetailsPage />} />
           <Route path="marketplace" element={<MarketplacePage />} />
+          <Route path="marketplace/:id" element={<MarketplaceProductDetailsPage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />
           <Route path="events" element={<EventsPage />} />
+          <Route path="events/:id" element={<EventDetailsPage />} />
           <Route path="announcements" element={<AnnouncementsPage />} />
         </Route>
 

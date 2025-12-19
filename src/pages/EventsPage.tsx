@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +49,7 @@ const ACTIVITY_TYPE_OPTIONS = [
 
 export default function EventsPage() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [events, setEvents] = useState<CommunityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -432,7 +434,11 @@ export default function EventsPage() {
 
                     {/* Actions */}
                     <div className="flex gap-2 flex-wrap">
-                      <Button variant="default" size="sm">
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => navigate(`/events/${event.id}`)}
+                      >
                         View Details
                       </Button>
                       <Button variant="outline" size="sm">

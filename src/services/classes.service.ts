@@ -112,7 +112,25 @@ export const classesService = {
   },
 
   async getEnrollments(tenantId: string, classId: string): Promise<any[]> {
-    const { data} = await apiClient.get(`/tenants/${tenantId}/classes/${classId}/enrollments`);
+    const { data } = await apiClient.get(`/tenants/${tenantId}/classes/${classId}/enrollments`);
+    return data;
+  },
+
+  async updateEnrollmentPayment(
+    tenantId: string,
+    classId: string,
+    enrollmentId: string,
+    paymentData: { paymentId?: string }
+  ): Promise<any> {
+    const { data } = await apiClient.patch(
+      `/tenants/${tenantId}/classes/${classId}/enrollments/${enrollmentId}/payment`,
+      paymentData
+    );
+    return data;
+  },
+
+  async getOccurrences(tenantId: string, classId: string): Promise<any[]> {
+    const { data } = await apiClient.get(`/tenants/${tenantId}/classes/${classId}/occurrences`);
     return data;
   },
 };

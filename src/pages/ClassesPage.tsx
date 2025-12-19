@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -52,6 +53,7 @@ const LEVEL_OPTIONS = [
 
 export default function ClassesPage() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -428,7 +430,12 @@ export default function ClassesPage() {
                   <Button variant="outline" size="sm" className="flex-1">
                     Edit
                   </Button>
-                  <Button variant="ghost" size="sm" className="flex-1">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => navigate(`/classes/${classItem.id}`)}
+                  >
                     View Details
                   </Button>
                 </div>

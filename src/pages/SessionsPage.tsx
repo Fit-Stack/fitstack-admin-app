@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,6 +44,7 @@ const CATEGORY_OPTIONS = [
 
 export default function SessionsPage() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddSessionOpen, setIsAddSessionOpen] = useState(false);
@@ -389,7 +391,12 @@ export default function SessionsPage() {
 
                     {/* Actions */}
                     <div className="flex gap-2 lg:flex-col">
-                      <Button variant="outline" size="sm" className="flex-1 lg:flex-none">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 lg:flex-none"
+                        onClick={() => navigate(`/sessions/${session.id}`)}
+                      >
                         View Details
                       </Button>
                       <Button variant="ghost" size="sm" className="flex-1 lg:flex-none">
