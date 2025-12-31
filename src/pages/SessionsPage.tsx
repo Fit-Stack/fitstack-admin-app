@@ -97,9 +97,15 @@ export default function SessionsPage() {
       if (categoryFilter) filters.category = categoryFilter;
 
       const response = await sessionsService.getAll(user.tenantId, filters);
-      setSessions(response.sessions || []);
-      setTotalSessions(response.total || 0);
-      setTotalPages(response.totalPages || 0);
+      
+      // Handle if response is array directly or paginated object
+      const sessionsData = Array.isArray(response) ? response : (response.sessions || []);
+      const total = Array.isArray(response) ? response.length : (response.total || 0);
+      const totalPages = Array.isArray(response) ? 1 : (response.totalPages || 0);
+      
+      setSessions(sessionsData);
+      setTotalSessions(total);
+      setTotalPages(totalPages);
     } catch (error) {
       console.error('Error fetching sessions:', error);
       setSessions([]);
