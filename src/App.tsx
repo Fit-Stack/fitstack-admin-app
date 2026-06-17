@@ -19,6 +19,7 @@ import EventsPage from './pages/EventsPage';
 import EventDetailsPage from './pages/EventDetailsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import UsersPage from './pages/UsersPage';
+import MembershipPage from './pages/MembershipPage';
 
 function App() {
   const { initialize, isAuthenticated, isLoading } = useAuthStore();
@@ -62,6 +63,7 @@ function App() {
           <Route path="trainers/:id" element={<TrainerDetailsPage />} />
           <Route path="users" element={<UsersPage   />} />
           <Route path="users/:id" element={<UserDetailsPage />} />
+          <Route path="membership" element={<MembershipPage />} />
           <Route path="marketplace" element={<MarketplacePage />} />
           <Route path="marketplace/:id" element={<MarketplaceProductDetailsPage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />
