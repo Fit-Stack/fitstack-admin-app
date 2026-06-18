@@ -3,7 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useAuthStore } from '@/store/authStore';
-import { analyticsService } from '@/services/analytics.service';
+import {
+  analyticsService,
+  formatCurrency,
+  type DashboardResponse,
+} from '@/services/analytics.service';
 import {
   Users,
   Calendar,
@@ -35,29 +39,56 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+const CATEGORY_COLORS = [
+  '#f97316',
+  '#8b5cf6',
+  '#10b981',
+  '#eab308',
+  '#3b82f6',
+  '#ec4899',
+  '#14b8a6',
+  '#f43f5e',
+];
+
+type ChangeType = 'increase' | 'decrease' | 'neutral';
+
+interface StatCard {
+  title: string;
+  value: string;
+  icon: typeof Users;
+  color: string;
+  bgColor: string;
+  subtext: string;
+  change?: { text: string; type: ChangeType };
+}
+
+// Build a change pill from a percentage (handles null = "not enough data").
+function pctChange(value: number | null, suffix = '%'): StatCard['change'] {
+  if (value === null || value === undefined) return undefined;
+  const type: ChangeType =
+    value > 0 ? 'increase' : value < 0 ? 'decrease' : 'neutral';
+  const sign = value > 0 ? '+' : '';
+  return { text: `${sign}${value}${suffix}`, type };
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
-  const [dashboardStats, setDashboardStats] = useState<any>(null);
-  const [trainerPerformanceData, setTrainerPerformanceData] = useState<any[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
 
   useEffect(() => {
     if (user?.tenantId) {
       fetchDashboardData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.tenantId]);
 
   const fetchDashboardData = async () => {
     if (!user?.tenantId) return;
-    
     try {
       setLoading(true);
-      const [stats, trainers] = await Promise.all([
-        analyticsService.getDashboardStats(user.tenantId),
-        analyticsService.getTrainerPerformance(user.tenantId),
-      ]);
-      setDashboardStats(stats);
-      setTrainerPerformanceData(trainers || []);
+      const data = await analyticsService.getDashboard(user.tenantId);
+      setDashboard(data);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -65,116 +96,125 @@ export default function DashboardPage() {
     }
   };
 
-  // Revenue data for the last 30 days
-  const revenueData = analyticsService.getRevenueData();
+  const currency = dashboard?.currency || 'INR';
+  const cards = dashboard?.cards;
+  const dash = (v: string) => (loading ? '...' : v);
 
-  // Member growth data
-  const memberGrowthData = analyticsService.getMemberGrowthData();
-
-  // Session attendance data
-  const sessionAttendanceData = analyticsService.getSessionAttendanceData();
-
-  // Class category distribution
-  const classCategoryData = analyticsService.getCategoryDistribution();
-
-
-
-  const stats = [
+  const stats: StatCard[] = [
     {
       title: 'Total Members',
-      value: loading ? '...' : dashboardStats?.totalMembers?.toLocaleString() || '0',
-      change: '+12.5%',
-      changeType: 'increase',
+      value: dash((cards?.totalMembers.value ?? 0).toLocaleString()),
+      change: pctChange(cards?.totalMembers.growthPct ?? null),
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
-      subtext: '170 new this month',
+      subtext: `${cards?.totalMembers.newThisMonth ?? 0} new this month`,
     },
     {
       title: 'Active Sessions',
-      value: loading ? '...' : dashboardStats?.activeSessions?.toString() || '0',
-      change: '+8.2%',
-      changeType: 'increase',
+      value: dash((cards?.activeSessions.value ?? 0).toString()),
       icon: Calendar,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
-      subtext: '23 sessions today',
+      subtext: `${cards?.activeSessions.today ?? 0} sessions today`,
     },
     {
       title: 'Monthly Revenue',
-      value: loading ? '...' : `$${dashboardStats?.monthlyRevenue?.toLocaleString() || '0'}`,
-      change: '+23.1%',
-      changeType: 'increase',
+      value: dash(formatCurrency(cards?.monthlyRevenue.value ?? 0, currency)),
+      change: pctChange(cards?.monthlyRevenue.growthPct ?? null),
       icon: DollarSign,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
-      subtext: 'Target: $200,000',
+      subtext: `Last month: ${formatCurrency(
+        cards?.monthlyRevenue.lastMonth ?? 0,
+        currency,
+      )}`,
     },
     {
       title: 'Avg Attendance',
-      value: loading ? '...' : `${dashboardStats?.averageAttendance?.toFixed(1) || '0'}%`,
-      change: '+4.3%',
-      changeType: 'increase',
+      value: dash(`${(cards?.avgAttendance.value ?? 0).toFixed(1)}%`),
+      change: pctChange(cards?.avgAttendance.changePts ?? null, ' pts'),
       icon: TrendingUp,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',
-      subtext: 'Up from 83%',
+      subtext: 'Last 30 days',
     },
     {
       title: 'Active Trainers',
-      value: loading ? '...' : dashboardStats?.activeTrainers?.toString() || '0',
-      change: '+2',
-      changeType: 'increase',
+      value: dash((cards?.activeTrainers.value ?? 0).toString()),
+      change:
+        (cards?.activeTrainers.newThisMonth ?? 0) > 0
+          ? { text: `+${cards?.activeTrainers.newThisMonth}`, type: 'increase' }
+          : undefined,
       icon: Award,
       color: 'text-pink-600',
       bgColor: 'bg-pink-100',
-      subtext: '2 new this month',
+      subtext: `${cards?.activeTrainers.newThisMonth ?? 0} new this month`,
     },
     {
       title: 'Avg Session Time',
-      value: '52 min',
-      change: '-3 min',
-      changeType: 'decrease',
+      value: dash(`${cards?.avgSessionTime.value ?? 0} min`),
       icon: Clock,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-100',
-      subtext: 'Optimal range',
+      subtext: 'Average duration',
     },
     {
       title: 'Member Retention',
-      value: loading ? '...' : `${dashboardStats?.memberRetention?.toFixed(1) || '0'}%`,
-      change: '+1.8%',
-      changeType: 'increase',
+      value: dash(
+        cards?.memberRetention.value === null ||
+          cards?.memberRetention.value === undefined
+          ? '—'
+          : `${cards.memberRetention.value.toFixed(1)}%`,
+      ),
       icon: Target,
       color: 'text-cyan-600',
       bgColor: 'bg-cyan-100',
-      subtext: 'Industry avg: 85%',
+      subtext:
+        cards?.memberRetention.value === null ||
+        cards?.memberRetention.value === undefined
+          ? 'Not enough data yet'
+          : 'Month over month',
     },
     {
       title: 'Daily Active Users',
-      value: loading ? '...' : dashboardStats?.dailyActiveUsers?.toLocaleString() || '0',
-      change: '+15.3%',
-      changeType: 'increase',
+      value: dash((cards?.dailyActiveUsers.value ?? 0).toLocaleString()),
       icon: Activity,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-100',
-      subtext: '44.8% of total',
+      subtext: `${cards?.dailyActiveUsers.pctOfTotal ?? 0}% of total`,
     },
   ];
+
+  const revenueData = dashboard?.charts.revenue ?? [];
+  const memberGrowthData = dashboard?.charts.memberGrowth ?? [];
+  const sessionAttendanceData = dashboard?.charts.sessionAttendance ?? [];
+  const classCategoryData = (dashboard?.charts.categoryDistribution ?? []).map(
+    (c, i) => ({ ...c, color: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }),
+  );
+  const trainerPerformanceData = dashboard?.trainers ?? [];
+
+  const lastUpdated = dashboard?.generatedAt
+    ? new Date(dashboard.generatedAt).toLocaleTimeString()
+    : loading
+      ? 'Loading…'
+      : '—';
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Analytics Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            Analytics Dashboard
+          </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
             Real-time insights and performance metrics
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-sm">
-            Last updated: Just now
+            Last updated: {lastUpdated}
           </Badge>
         </div>
       </div>
@@ -192,21 +232,31 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {stat.value}
+              </div>
               <div className="flex items-center gap-2 mt-2">
-                <div
-                  className={`flex items-center text-xs font-medium ${
-                    stat.changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-                  }`}
-                >
-                  {stat.changeType === 'increase' ? (
-                    <ArrowUp className="h-3 w-3 mr-1" />
-                  ) : (
-                    <ArrowDown className="h-3 w-3 mr-1" />
-                  )}
-                  {stat.change}
-                </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{stat.subtext}</span>
+                {stat.change && (
+                  <div
+                    className={`flex items-center text-xs font-medium ${
+                      stat.change.type === 'increase'
+                        ? 'text-green-600'
+                        : stat.change.type === 'decrease'
+                          ? 'text-red-600'
+                          : 'text-gray-500'
+                    }`}
+                  >
+                    {stat.change.type === 'increase' ? (
+                      <ArrowUp className="h-3 w-3 mr-1" />
+                    ) : stat.change.type === 'decrease' ? (
+                      <ArrowDown className="h-3 w-3 mr-1" />
+                    ) : null}
+                    {stat.change.text}
+                  </div>
+                )}
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {stat.subtext}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -220,7 +270,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Revenue Trend (Last 30 Days)</CardTitle>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Daily revenue vs target comparison
+              Daily membership revenue
             </p>
           </CardHeader>
           <CardContent>
@@ -233,13 +283,10 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 12 }}
-                  tickMargin={10}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} tickMargin={10} />
                 <YAxis tick={{ fontSize: 12 }} tickMargin={10} />
                 <Tooltip
+                  formatter={(value: number) => formatCurrency(value, currency)}
                   contentStyle={{
                     backgroundColor: 'white',
                     border: '1px solid #e5e7eb',
@@ -252,14 +299,6 @@ export default function DashboardPage() {
                   stroke="#f97316"
                   strokeWidth={2}
                   fill="url(#colorRevenue)"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="target"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -278,11 +317,7 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={memberGrowthData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 12 }}
-                  tickMargin={10}
-                />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} tickMargin={10} />
                 <YAxis tick={{ fontSize: 12 }} tickMargin={10} />
                 <Tooltip
                   contentStyle={{
@@ -321,18 +356,14 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Session Attendance by Time Slot</CardTitle>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Weekly attendance patterns across different time slots
+              Attendance over the last 30 days across time slots
             </p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={sessionAttendanceData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 12 }}
-                  tickMargin={10}
-                />
+                <XAxis dataKey="day" tick={{ fontSize: 12 }} tickMargin={10} />
                 <YAxis tick={{ fontSize: 12 }} tickMargin={10} />
                 <Tooltip
                   contentStyle={{
@@ -353,49 +384,65 @@ export default function DashboardPage() {
         {/* Class Category Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Class Categories</CardTitle>
+            <CardTitle>Session Categories</CardTitle>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Distribution by class type
+              Distribution by session type
             </p>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={classCategoryData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {classCategoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="mt-4 space-y-2">
-              {classCategoryData.map((category) => (
-                <div key={category.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+            {classCategoryData.length === 0 ? (
+              <EmptyState
+                icon={Activity}
+                title="No sessions yet"
+                description="Category distribution appears once sessions are created."
+                variant="compact"
+              />
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={classCategoryData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) =>
+                        `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
+                      }
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {classCategoryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="mt-4 space-y-2">
+                  {classCategoryData.map((category) => (
                     <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: category.color }}
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{category.name}</span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {category.value}%
-                  </span>
+                      key={category.name}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          {category.name}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {category.value}%
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -405,7 +452,7 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle>Top Trainer Performance</CardTitle>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Sessions conducted, ratings, and revenue generated this month
+            Sessions conducted, ratings, and revenue generated
           </p>
         </CardHeader>
         <CardContent>
@@ -420,7 +467,7 @@ export default function DashboardPage() {
             <div className="space-y-4">
               {trainerPerformanceData.map((trainer, index) => (
                 <div
-                  key={trainer.name}
+                  key={`${trainer.name}-${index}`}
                   className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
                   <div className="flex items-center gap-4">
@@ -428,7 +475,9 @@ export default function DashboardPage() {
                       #{index + 1}
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 dark:text-gray-100">{trainer.name}</p>
+                      <p className="font-semibold text-gray-900 dark:text-gray-100">
+                        {trainer.name}
+                      </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {trainer.sessions} sessions completed
                       </p>
@@ -436,7 +485,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Rating</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Rating
+                      </p>
                       <div className="flex items-center gap-1">
                         <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
                           {trainer.rating}
@@ -445,9 +496,11 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Revenue</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Revenue
+                      </p>
                       <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                        ${trainer.revenue.toLocaleString()}
+                        {formatCurrency(trainer.revenue, currency)}
                       </p>
                     </div>
                     <div className="w-32">
@@ -455,7 +508,7 @@ export default function DashboardPage() {
                         <div
                           className="h-full bg-primary"
                           style={{
-                            width: `${(trainer.sessions / 52) * 100}%`,
+                            width: `${Math.min((trainer.sessions / 52) * 100, 100)}%`,
                           }}
                         />
                       </div>
