@@ -10,6 +10,20 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dumbbell, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
+// hex (#rgb / #rrggbb) → rgba string, for soft brand tints in the background.
+function tint(hex: string | undefined, alpha: number): string {
+  let h = (hex || '#f97316').replace('#', '');
+  if (h.length === 3)
+    h = h
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  const r = parseInt(h.slice(0, 2), 16) || 0;
+  const g = parseInt(h.slice(2, 4), 16) || 0;
+  const b = parseInt(h.slice(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
@@ -58,8 +72,41 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 p-4 transition-colors duration-200">
-      <Card className="w-full max-w-md">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-gray-950 p-4">
+      {/* Branded background */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `radial-gradient(60% 50% at 15% 10%, ${tint(
+            brandConfig.primaryColor,
+            0.16,
+          )} 0%, transparent 60%), radial-gradient(55% 50% at 90% 90%, ${tint(
+            brandConfig.primaryHover,
+            0.14,
+          )} 0%, transparent 60%)`,
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full blur-3xl"
+        style={{ backgroundColor: tint(brandConfig.primaryColor, 0.28) }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-32 -right-32 h-96 w-96 rounded-full blur-3xl"
+        style={{ backgroundColor: tint(brandConfig.primaryHover, 0.24) }}
+      />
+      {brandConfig.logoUrl && (
+        <img
+          src={brandConfig.logoUrl}
+          aria-hidden
+          alt=""
+          className="pointer-events-none absolute left-1/2 top-1/2 w-[34rem] max-w-none -translate-x-1/2 -translate-y-1/2 opacity-[0.04] dark:opacity-[0.06]"
+        />
+      )}
+
+      <Card className="relative z-10 w-full max-w-md border-white/50 bg-white/90 shadow-2xl backdrop-blur-sm dark:border-gray-700/60 dark:bg-gray-900/85">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             {brandConfig.logoUrl ? (
