@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services/auth.service';
-import { brandConfig } from '@/config/branding';
+import { useBrandConfig } from '@/config/branding';
+import { useTenantBranding } from '@/contexts/TenantBrandingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,9 +13,14 @@ import { Dumbbell, AlertCircle, Eye, EyeOff } from 'lucide-react';
 export default function LoginPage() {
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
+  const brandConfig = useBrandConfig();
+  const { branding, error: tenantError } = useTenantBranding();
+
+  // Login requires the tenant UUID (tenant.id), resolved from the branding payload.
+  const resolvedTenantId = branding?.id ?? null;
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [tenantId, setTenantId] = useState('');
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -23,20 +29,29 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Tenant must be resolved (unless logging in as super admin)
+    if (!isSuperAdmin && !resolvedTenantId) {
+      setError('Tenant not found. Please check the URL (e.g. ?tenant=acme).');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const credentials = {
-        email,
-        password,
-        ...(isSuperAdmin ? {} : { tenantId }),
-      };
+      const credentials = isSuperAdmin
+        ? { email, password }
+        : { email, password, tenantId: resolvedTenantId! };
 
       const response = await authService.login(credentials);
       setUser(response.user);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        'Login failed. Please check your credentials.';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -71,9 +86,12 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-                <AlertCircle className="h-4 w-4" />
-                <span>{error}</span>
+              <div className="flex items-start gap-3 p-4 text-sm bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
+                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-red-700 dark:text-red-300 mb-1">Login Error</p>
+                  <p className="text-red-600 dark:text-red-400">{error}</p>
+                </div>
               </div>
             )}
 
@@ -118,18 +136,10 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {!isSuperAdmin && (
-              <div className="space-y-2">
-                <Label htmlFor="tenantId">Tenant ID</Label>
-                <Input
-                  id="tenantId"
-                  type="text"
-                  placeholder="gymdowntown_abc123"
-                  value={tenantId}
-                  onChange={(e) => setTenantId(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
+            {tenantError && !isSuperAdmin && (
+              <div className="flex items-center gap-2 p-3 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md">
+                <AlertCircle className="h-4 w-4" />
+                <span>Tenant not found: {tenantError}</span>
               </div>
             )}
 

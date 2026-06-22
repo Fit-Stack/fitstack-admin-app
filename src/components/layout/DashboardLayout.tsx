@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
-import { brandConfig } from '@/config/branding';
+import { useBrandConfig } from '@/config/branding';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
@@ -19,6 +19,7 @@ import {
   X,
   Sun,
   Moon,
+  Palette,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Trainers', href: '/trainers', icon: Users },
   { name: 'Users', href: '/users', icon: UserCircle },
   { name: 'Membership', href: '/membership', icon: CreditCard },
+  { name: 'Branding', href: '/branding', icon: Palette },
   { name: 'Marketplace', href: '/marketplace', icon: ShoppingBag },
   { name: 'Enquiries', href: '/enquiries', icon: MessageSquare },
   { name: 'Events', href: '/events', icon: CalendarDays },
@@ -39,6 +41,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { isDarkMode, toggleTheme, setTheme } = useThemeStore();
+  const brandConfig = useBrandConfig();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Initialize theme on mount
@@ -164,17 +167,6 @@ export default function DashboardLayout() {
             </button>
             <div className="flex-1" />
             <div className="flex items-center space-x-4">
-              {user?.tenantId && (
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                  <div 
-                    className="h-2 w-2 rounded-full animate-pulse"
-                    style={{ backgroundColor: brandConfig.primaryColor }}
-                  ></div>
-                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {user.tenantId}
-                  </span>
-                </div>
-              )}
               <Button
                 variant="ghost"
                 size="icon"

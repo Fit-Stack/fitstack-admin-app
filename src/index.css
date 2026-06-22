@@ -55,6 +55,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--brand-font, 'Inter'), sans-serif;
   }
   h1 {
     @apply text-4xl font-bold tracking-tight;

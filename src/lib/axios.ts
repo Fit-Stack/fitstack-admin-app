@@ -33,10 +33,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // Clear auth data and redirect to login
+      // Clear auth data and redirect to login, preserving query params (e.g., ?tenant=acme)
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+
+      const currentSearch = window.location.search;
+      const loginUrl = `/login${currentSearch}`;
+      window.location.href = loginUrl;
     }
 
     return Promise.reject(error);

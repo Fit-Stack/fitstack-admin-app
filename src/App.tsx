@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './contexts/ToastContext';
 import LoginPage from './pages/LoginPage';
@@ -20,6 +20,19 @@ import EventDetailsPage from './pages/EventDetailsPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import UsersPage from './pages/UsersPage';
 import MembershipPage from './pages/MembershipPage';
+import BrandingPage from './pages/BrandingPage';
+
+// Component to redirect to login while preserving query params
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuthStore();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    return <Navigate to={`/login${location.search}`} replace />;
+  }
+
+  return children;
+}
 
 function App() {
   const { initialize, isAuthenticated, isLoading } = useAuthStore();
@@ -51,7 +64,9 @@ function App() {
         <Route
           path="/"
           element={
-            isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" replace />
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
           }
         >
           <Route index element={<DashboardPage />} />
@@ -64,6 +79,7 @@ function App() {
           <Route path="users" element={<UsersPage   />} />
           <Route path="users/:id" element={<UserDetailsPage />} />
           <Route path="membership" element={<MembershipPage />} />
+          <Route path="branding" element={<BrandingPage />} />
           <Route path="marketplace" element={<MarketplacePage />} />
           <Route path="marketplace/:id" element={<MarketplaceProductDetailsPage />} />
           <Route path="enquiries" element={<EnquiriesPage />} />
