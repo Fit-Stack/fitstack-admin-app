@@ -96,9 +96,6 @@ export default function AddAnnouncementForm({ announcement, onSuccess, onCancel 
       }
 
       onSuccess();
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (error: any) {
       console.error('Error saving announcement:', error);
       error('Error', error.response?.data?.message || 'Failed to save announcement');

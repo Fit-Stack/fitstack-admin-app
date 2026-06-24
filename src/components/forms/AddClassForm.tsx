@@ -42,8 +42,6 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loadingTrainers, setLoadingTrainers] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState<string>('');
-  const [createdClass, setCreatedClass] = useState<any>(null);
-  const [publishLoading, setPublishLoading] = useState(false);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
 
@@ -177,9 +175,9 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
         level: data.level,
       };
 
-      const newClass = await classesService.create(user.tenantId, classData, bannerFile);
-      setCreatedClass(newClass);
-      success('Success', 'Class created successfully! Would you like to publish it now?');
+      await classesService.create(user.tenantId, classData, bannerFile);
+      success('Success', 'Class created successfully!');
+      onSuccess();
     } catch (err: any) {
       console.error('Error creating class:', err);
       error('Error', err.response?.data?.message || 'Failed to create class. Please try again.');
@@ -481,70 +479,19 @@ export default function AddClassForm({ onSuccess, onCancel }: AddClassFormProps)
 
       {/* Form Actions */}
       <div className="flex gap-3 pt-4 border-t">
-        {!createdClass ? (
-          <>
-            <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading || !selectedTrainer} className="flex-1">
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create Class'
-              )}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setCreatedClass(null);
-                onSuccess();
-                setTimeout(() => {
-                  window.location.reload();
-                }, 1000);
-              }}
-              className="flex-1"
-            >
-              Done
-            </Button>
-            <Button
-              type="button"
-              onClick={async () => {
-                try {
-                  setPublishLoading(true);
-                  await classesService.publish(user?.tenantId!, createdClass.id);
-                  success('Success', 'Class published successfully!');
-                  onSuccess();
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 1000);
-                } catch (err: any) {
-                  console.error('Error publishing class:', err);
-                  error('Error', err.response?.data?.message || 'Failed to publish class.');
-                } finally {
-                  setPublishLoading(false);
-                }
-              }}
-              disabled={publishLoading}
-              className="flex-1"
-            >
-              {publishLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Publishing...
-                </>
-              ) : (
-                'Publish Class'
-              )}
-            </Button>
-          </>
-        )}
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading || !selectedTrainer} className="flex-1">
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            'Create Class'
+          )}
+        </Button>
       </div>
     </form>
   );

@@ -165,9 +165,6 @@ export default function AddSessionForm({ onSuccess, onCancel }: AddSessionFormPr
       await sessionsService.create(user.tenantId, sessionData, bannerFile);
       success('Success', 'Session created successfully!');
       onSuccess();
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (err: any) {
       console.error('Error creating session:', err);
       error('Error', err.response?.data?.message || 'Failed to create session. Please try again.');

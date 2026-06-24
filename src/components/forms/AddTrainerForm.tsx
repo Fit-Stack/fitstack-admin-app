@@ -195,9 +195,6 @@ export default function AddTrainerForm({ onSuccess, onCancel }: AddTrainerFormPr
       await trainersService.create(user.tenantId, trainerData);
       success('Success', 'Trainer created successfully!');
       onSuccess();
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (err: any) {
       console.error('Error creating trainer:', err);
       error('Error', err.response?.data?.message || 'Failed to create trainer. Please try again.');

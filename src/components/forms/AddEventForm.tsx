@@ -67,9 +67,6 @@ export default function AddEventForm({ onSuccess, onCancel }: AddEventFormProps)
       await eventsService.create(user.tenantId, eventData);
       success('Success', 'Event created successfully');
       onSuccess();
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
     } catch (err: any) {
       console.error('Error creating event:', err);
       error('Error', err.response?.data?.message || 'Failed to create event');
